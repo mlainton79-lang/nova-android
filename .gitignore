@@ -1,0 +1,10 @@
+build/
+.gradle/
+.idea/
+*.iml
+local.properties
+backups_*/
+_nova_backend_backup/
+full/
+*.apk
+*.aab
