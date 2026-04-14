@@ -52,8 +52,8 @@ object NovaApiClient {
             val url = URL("$BASE_URL/api/v1/chat")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
-                connectTimeout = 30000
-                readTimeout = 30000
+                connectTimeout = 180000
+                readTimeout = 180000
                 doOutput = true
                 instanceFollowRedirects = true
                 setRequestProperty("Authorization", "Bearer $DEV_TOKEN")
@@ -113,8 +113,8 @@ object NovaApiClient {
             val url = URL("$BASE_URL/api/v1/council")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
-                connectTimeout = 90000
-                readTimeout = 90000
+                connectTimeout = 180000
+                readTimeout = 180000
                 doOutput = true
                 doInput = true
                 instanceFollowRedirects = true
@@ -180,8 +180,8 @@ object NovaApiClient {
             val url = URL("$BASE_URL/api/v1/summarise/")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
-                connectTimeout = 20000
-                readTimeout = 20000
+                connectTimeout = 180000
+                readTimeout = 180000
                 doOutput = true
                 instanceFollowRedirects = true
                 setRequestProperty("Authorization", "Bearer $DEV_TOKEN")
@@ -218,8 +218,8 @@ object NovaApiClient {
             val url = URL("$BASE_URL/api/v1/codebase/sync")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
-                connectTimeout = 60000
-                readTimeout = 60000
+                connectTimeout = 180000
+                readTimeout = 180000
                 doOutput = true
                 instanceFollowRedirects = true
                 setRequestProperty("Authorization", "Bearer $DEV_TOKEN")
@@ -250,8 +250,8 @@ object NovaApiClient {
             val url = URL("$BASE_URL/api/v1/memory")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
-                connectTimeout = 15000
-                readTimeout = 15000
+                connectTimeout = 180000
+                readTimeout = 180000
                 instanceFollowRedirects = true
                 setRequestProperty("Authorization", "Bearer $DEV_TOKEN")
                 setRequestProperty("Accept", "application/json")
@@ -278,8 +278,8 @@ object NovaApiClient {
             val url = URL("$BASE_URL/api/v1/memory")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
-                connectTimeout = 15000
-                readTimeout = 15000
+                connectTimeout = 180000
+                readTimeout = 180000
                 doOutput = true
                 instanceFollowRedirects = true
                 setRequestProperty("Authorization", "Bearer $DEV_TOKEN")
@@ -299,8 +299,8 @@ object NovaApiClient {
             val url = URL("$BASE_URL/api/v1/memory/$id")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "DELETE"
-                connectTimeout = 15000
-                readTimeout = 15000
+                connectTimeout = 180000
+                readTimeout = 180000
                 instanceFollowRedirects = true
                 setRequestProperty("Authorization", "Bearer $DEV_TOKEN")
             }
@@ -313,8 +313,8 @@ object NovaApiClient {
             val url = URL("$BASE_URL/api/v1/think/morning")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
-                connectTimeout = 10000
-                readTimeout = 10000
+                connectTimeout = 180000
+                readTimeout = 180000
                 instanceFollowRedirects = true
                 setRequestProperty("Authorization", "Bearer $DEV_TOKEN")
                 setRequestProperty("Accept", "application/json")
