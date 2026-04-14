@@ -1,0 +1,20 @@
+{
+  "allFiles": [
+    {
+      "file": "/storage/emulated/0/Download/Nova_phase3e/app/src/main/kotlin/com/mlainton/nova/NovaApiClient.kt",
+      "selection": {
+        "end": {
+          "column": 1,
+          "index": 14601,
+          "line": 344
+        },
+        "start": {
+          "column": 0,
+          "index": 0,
+          "line": 0
+        }
+      }
+    }
+  ],
+  "selectedFile": "/storage/emulated/0/Download/Nova_phase3e/app/src/main/kotlin/com/mlainton/nova/NovaApiClient.kt"
+}
