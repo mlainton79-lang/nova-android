@@ -1034,9 +1034,30 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun bitmapToBase64(bitmap: Bitmap): String {
+        val MAX_IMAGE_SIZE_PX = 2048
+        val MAX_BYTE_SIZE_KB = 1024
+
+        var scaledBitmap = bitmap
+        val width = bitmap.width
+        val height = bitmap.height
+        if (width > MAX_IMAGE_SIZE_PX || height > MAX_IMAGE_SIZE_PX) {
+            val ratio = Math.min(MAX_IMAGE_SIZE_PX.toFloat() / width, MAX_IMAGE_SIZE_PX.toFloat() / height)
+            val newWidth = (width * ratio).toInt()
+            val newHeight = (height * ratio).toInt()
+            scaledBitmap = Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
+        }
+
         val stream = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 88, stream)
-        return android.util.Base64.encodeToString(stream.toByteArray(), android.util.Base64.NO_WRAP)
+        var quality = 90
+        var byteArray: ByteArray
+        do {
+            stream.reset()
+            scaledBitmap.compress(Bitmap.CompressFormat.JPEG, quality, stream)
+            byteArray = stream.toByteArray()
+            quality -= 5
+        } while (byteArray.size > MAX_BYTE_SIZE_KB * 1024 && quality >= 60)
+
+        return android.util.Base64.encodeToString(byteArray, android.util.Base64.NO_WRAP)
     }
 
     private fun clearPendingCamera() {
