@@ -99,6 +99,98 @@ object NovaApiClient {
         }
     }
 
+    // Streaming chat — calls onChunk for each word/chunk as it arrives, onDone when complete
+    fun sendChatStream(
+        provider: String,
+        message: String,
+        history: List<HistoryItem>,
+        context: String? = null,
+        documentText: String? = null,
+        documentBase64: String? = null,
+        documentName: String? = null,
+        documentMime: String? = null,
+        imageBase64: String? = null,
+        onChunk: (String) -> Unit,
+        onDone: (ok: Boolean, fullText: String, error: String?) -> Unit
+    ) {
+        try {
+            val url = URL("$BASE_URL/api/v1/chat/stream")
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 300000
+                readTimeout = 300000
+                doOutput = true
+                instanceFollowRedirects = true
+                setRequestProperty("Authorization", "Bearer $DEV_TOKEN")
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Accept", "text/event-stream")
+            }
+
+            val historyJson = JSONArray()
+            history.forEach { item ->
+                historyJson.put(JSONObject().apply {
+                    put("role", item.role)
+                    put("content", item.content)
+                })
+            }
+
+            val body = JSONObject().apply {
+                put("provider", provider)
+                put("message", message)
+                put("history", historyJson)
+                if (!context.isNullOrBlank()) put("context", context)
+                if (!documentText.isNullOrBlank()) put("document_text", documentText)
+                if (!documentBase64.isNullOrBlank()) put("document_base64", documentBase64)
+                if (!documentName.isNullOrBlank()) put("document_name", documentName)
+                if (!documentMime.isNullOrBlank()) put("document_mime", documentMime)
+                if (!imageBase64.isNullOrBlank()) put("image_base64", imageBase64)
+            }
+
+            connection.outputStream.use { it.write(body.toString().toByteArray()); it.flush() }
+
+            val statusCode = connection.responseCode
+            if (statusCode !in 200..299) {
+                val err = readAll(connection.errorStream)
+                onDone(false, "", "HTTP $statusCode: $err")
+                return
+            }
+
+            val fullText = StringBuilder()
+            val reader = BufferedReader(InputStreamReader(connection.inputStream))
+            var line: String?
+            while (reader.readLine().also { line = it } != null) {
+                val l = line ?: continue
+                if (!l.startsWith("data:")) continue
+                val data = l.removePrefix("data:").trim()
+                if (data.isBlank()) continue
+                try {
+                    val json = JSONObject(data)
+                    when (json.optString("type")) {
+                        "chunk" -> {
+                            val chunk = json.optString("text", "")
+                            if (chunk.isNotEmpty()) {
+                                fullText.append(chunk)
+                                onChunk(chunk)
+                            }
+                        }
+                        "error" -> {
+                            val errText = json.optString("text", "Unknown error")
+                            onDone(false, fullText.toString(), errText)
+                            return
+                        }
+                        "done" -> {
+                            onDone(true, fullText.toString(), null)
+                            return
+                        }
+                    }
+                } catch (_: Exception) { }
+            }
+            onDone(true, fullText.toString(), null)
+        } catch (e: Exception) {
+            onDone(false, "", e.message)
+        }
+    }
+
     fun sendCouncil(
         message: String,
         history: List<HistoryItem>,
@@ -155,7 +247,7 @@ object NovaApiClient {
                 val round2 = mutableMapOf<String, String>()
                 d.optJSONObject("round2_refined")?.let { r -> r.keys().forEach { k -> round2[k] = r.optString(k) } }
                 CouncilDebugData(
-                    decidingBrain = d.optString("deciding_brain", "claude"),
+                    decidingBrain = d.optString("deciding_brain", "gemini"),
                     round1 = round1,
                     challenge = d.optString("challenge", ""),
                     round2Refined = round2
@@ -343,4 +435,3 @@ object NovaApiClient {
         }
     }
 }
-

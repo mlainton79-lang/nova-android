@@ -5,16 +5,31 @@
       "selection": {
         "end": {
           "column": 1,
-          "index": 14601,
-          "line": 344
+          "index": 18527,
+          "line": 436
         },
         "start": {
-          "column": 0,
-          "index": 0,
-          "line": 0
+          "column": 1,
+          "index": 18527,
+          "line": 436
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/Download/Nova_phase3e/app/src/main/kotlin/com/mlainton/nova/MainActivity.kt",
+      "selection": {
+        "end": {
+          "column": 1,
+          "index": 56675,
+          "line": 1348
+        },
+        "start": {
+          "column": 1,
+          "index": 56675,
+          "line": 1348
         }
       }
     }
   ],
-  "selectedFile": "/storage/emulated/0/Download/Nova_phase3e/app/src/main/kotlin/com/mlainton/nova/NovaApiClient.kt"
+  "selectedFile": "/storage/emulated/0/Download/Nova_phase3e/app/src/main/kotlin/com/mlainton/nova/MainActivity.kt"
 }

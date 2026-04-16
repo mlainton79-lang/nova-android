@@ -1240,58 +1240,110 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val doc = DocumentStore.getDocument(this)
         statusText.text = "Thinking with ${currentBrainMode.displayName}..."
 
+        // Council uses the non-streaming endpoint
+        if (provider == "council") {
+            Thread {
+                val result = NovaApiClient.sendCouncil(
+                    message = currentMessage,
+                    history = history,
+                    context = null,
+                    documentText = doc?.text,
+                    documentBase64 = doc?.base64,
+                    documentName = doc?.name,
+                    documentMime = doc?.mimeType
+                )
+                runOnUiThread {
+                    val replyText = if (result.reply.isNotBlank()) result.reply
+                        else "Tony is having trouble connecting right now. Please try again or switch provider."
+
+                    val debugJson = result.councilDebug?.let { d ->
+                        org.json.JSONObject().apply {
+                            put("decidingBrain", d.decidingBrain)
+                            put("challenge", d.challenge)
+                            val r1 = org.json.JSONObject()
+                            d.round1.forEach { (k, v) -> r1.put(k, v) }
+                            put("round1", r1)
+                            val r2 = org.json.JSONObject()
+                            d.round2Refined.forEach { (k, v) -> r2.put(k, v) }
+                            put("round2", r2)
+                        }.toString()
+                    } ?: ""
+
+                    ChatHistoryStore.appendMessage(
+                        this, "tony", replyText,
+                        provider = provider,
+                        debugData = debugJson
+                    )
+                    statusText.text = if (result.ok) "Tony is ready."
+                        else "${currentBrainMode.displayName} couldn't connect. Try again."
+                    renderChatHistory()
+                    refreshChatList()
+                    triggerSummarisationWithHistory(buildFullHistory())
+                }
+            }.start()
+            return
+        }
+
+        // All other providers stream word by word
+        val streamingBubble = TextView(this).apply {
+            text = "▍"
+            textSize = 16f
+            setTextColor(0xFF111111.toInt())
+            maxWidth = (resources.displayMetrics.widthPixels * 0.76f).toInt()
+            setPadding(18, 12, 18, 12)
+            background = ContextCompat.getDrawable(this@MainActivity, R.drawable.chat_bubble_tony)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.START
+                setMargins(0, 0, 0, 6)
+            }
+        }
+
+        runOnUiThread {
+            chatContainer.addView(streamingBubble)
+            chatScrollView.post { chatScrollView.fullScroll(View.FOCUS_DOWN) }
+        }
+
+        val fullText = StringBuilder()
+
         Thread {
-            val result = if (provider == "council") {
-                NovaApiClient.sendCouncil(
-                    message = currentMessage,
-                    history = history,
-                    context = null,
-                    documentText = doc?.text,
-                    documentBase64 = doc?.base64,
-                    documentName = doc?.name,
-                    documentMime = doc?.mimeType
-                )
-            } else {
-                NovaApiClient.sendChat(
-                    provider = provider,
-                    message = currentMessage,
-                    history = history,
-                    context = null,
-                    documentText = doc?.text,
-                    documentBase64 = doc?.base64,
-                    documentName = doc?.name,
-                    documentMime = doc?.mimeType
-                )
-            }
-
-            runOnUiThread {
-                val replyText = if (result.reply.isNotBlank()) result.reply
-                    else "Tony is having trouble connecting right now. Please try again or switch provider."
-
-                val debugJson = result.councilDebug?.let { d ->
-                    org.json.JSONObject().apply {
-                        put("decidingBrain", d.decidingBrain)
-                        put("challenge", d.challenge)
-                        val r1 = org.json.JSONObject()
-                        d.round1.forEach { (k, v) -> r1.put(k, v) }
-                        put("round1", r1)
-                        val r2 = org.json.JSONObject()
-                        d.round2Refined.forEach { (k, v) -> r2.put(k, v) }
-                        put("round2", r2)
-                    }.toString()
-                } ?: ""
-
-                ChatHistoryStore.appendMessage(
-                    this, "tony", replyText,
-                    provider = provider,
-                    debugData = debugJson
-                )
-                statusText.text = if (result.ok) "Tony is ready."
-                    else "${currentBrainMode.displayName} couldn't connect. Try again."
-                renderChatHistory()
-                refreshChatList()
-                triggerSummarisationWithHistory(buildFullHistory())
-            }
+            NovaApiClient.sendChatStream(
+                provider = provider,
+                message = currentMessage,
+                history = history,
+                context = null,
+                documentText = doc?.text,
+                documentBase64 = doc?.base64,
+                documentName = doc?.name,
+                documentMime = doc?.mimeType,
+                onChunk = { chunk ->
+                    fullText.append(chunk)
+                    runOnUiThread {
+                        markwon.setMarkdown(streamingBubble, fullText.toString() + " ▍")
+                        chatScrollView.post { chatScrollView.fullScroll(View.FOCUS_DOWN) }
+                    }
+                },
+                onDone = { ok, completeText, error ->
+                    val finalReply = completeText.ifBlank {
+                        "Tony is having trouble connecting right now. Please try again or switch provider."
+                    }
+                    runOnUiThread {
+                        chatContainer.removeView(streamingBubble)
+                        ChatHistoryStore.appendMessage(
+                            this, "tony", finalReply,
+                            provider = provider,
+                            debugData = ""
+                        )
+                        statusText.text = if (ok) "Tony is ready."
+                            else "${currentBrainMode.displayName} couldn't connect. Try again."
+                        renderChatHistory()
+                        refreshChatList()
+                        triggerSummarisationWithHistory(buildFullHistory())
+                    }
+                }
+            )
         }.start()
     }
 }
