@@ -19,14 +19,29 @@
       "file": "/storage/emulated/0/Download/Nova_phase3e/app/src/main/kotlin/com/mlainton/nova/MainActivity.kt",
       "selection": {
         "end": {
-          "column": 1,
-          "index": 56675,
-          "line": 1348
+          "column": 0,
+          "index": 58615,
+          "line": 1397
         },
         "start": {
-          "column": 1,
-          "index": 56675,
-          "line": 1348
+          "column": 0,
+          "index": 58615,
+          "line": 1397
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/Download/Nova_phase3e/app/src/main/kotlin/com/mlainton/nova/BrainBroker.kt",
+      "selection": {
+        "end": {
+          "column": 69,
+          "index": 1416,
+          "line": 34
+        },
+        "start": {
+          "column": 69,
+          "index": 1416,
+          "line": 34
         }
       }
     }

@@ -793,6 +793,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             })
         }
 
+        // Council debug panel — shows who said what, who decided, who failed
         if (!isUser && message.provider == "council" && message.debugData.isNotEmpty()) {
             val debugPanel = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -806,35 +807,74 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 val challenge = d.optString("challenge", "")
                 val round1 = d.optJSONObject("round1")
                 val round2 = d.optJSONObject("round2")
-                fun debugLine(text: String): TextView = TextView(this).apply {
-                    this.text = text; textSize = 12f
-                    setTextColor(0xFFB0A0CC.toInt())
-                    setPadding(0, 4, 0, 4); setTextIsSelectable(true)
+                val providersUsed = d.optJSONArray("providersUsed")
+                val providersFailed = d.optJSONArray("providersFailed")
+
+                fun debugLine(text: String, color: Int = 0xFFB0A0CC.toInt()): TextView = TextView(this).apply {
+                    this.text = text
+                    textSize = 12f
+                    setTextColor(color)
+                    setPadding(0, 4, 0, 4)
+                    setTextIsSelectable(true)
                 }
-                debugPanel.addView(debugLine("🧠 Decided by: $decidingBrain"))
-                if (round1 != null) {
-                    debugPanel.addView(debugLine("── Round 1 ──"))
-                    round1.keys().forEach { key -> debugPanel.addView(debugLine("$key: ${round1.optString(key).take(120)}…")) }
+
+                // Header — who decided
+                debugPanel.addView(debugLine("🧠 Decided by: $decidingBrain", 0xFFE0D0FF.toInt()))
+
+                // Who participated and who failed
+                if (providersUsed != null && providersUsed.length() > 0) {
+                    val used = (0 until providersUsed.length()).map { providersUsed.getString(it) }
+                    debugPanel.addView(debugLine("✅ Active: ${used.joinToString(", ")}"))
                 }
+                if (providersFailed != null && providersFailed.length() > 0) {
+                    val failed = (0 until providersFailed.length()).map { providersFailed.getString(it) }
+                    debugPanel.addView(debugLine("❌ Failed: ${failed.joinToString(", ")}", 0xFFCC8888.toInt()))
+                }
+
+                // Round 1
+                if (round1 != null && round1.length() > 0) {
+                    debugPanel.addView(debugLine("── Round 1 ──", 0xFF9B8FBF.toInt()))
+                    round1.keys().forEach { key ->
+                        val val1 = round1.optString(key)
+                        debugPanel.addView(debugLine("$key: ${val1.take(150)}${if (val1.length > 150) "…" else ""}"))
+                    }
+                }
+
+                // Challenge
                 if (challenge.isNotEmpty()) {
-                    debugPanel.addView(debugLine("── Challenge ──"))
-                    debugPanel.addView(debugLine(challenge.take(200)))
+                    debugPanel.addView(debugLine("── Challenge ──", 0xFF9B8FBF.toInt()))
+                    debugPanel.addView(debugLine(challenge.take(300)))
                 }
+
+                // Round 2
                 if (round2 != null && round2.length() > 0) {
-                    debugPanel.addView(debugLine("── Round 2 ──"))
-                    round2.keys().forEach { key -> debugPanel.addView(debugLine("$key: ${round2.optString(key).take(120)}…")) }
+                    debugPanel.addView(debugLine("── Round 2 ──", 0xFF9B8FBF.toInt()))
+                    round2.keys().forEach { key ->
+                        val val2 = round2.optString(key)
+                        debugPanel.addView(debugLine("$key: ${val2.take(150)}${if (val2.length > 150) "…" else ""}"))
+                    }
                 }
+
             } catch (_: Exception) {
                 debugPanel.addView(TextView(this).apply {
-                    text = "Debug data unavailable"; textSize = 12f; setTextColor(0xFF9B8FBF.toInt())
+                    text = "Debug data unavailable"
+                    textSize = 12f
+                    setTextColor(0xFF9B8FBF.toInt())
                 })
             }
             val toggle = TextView(this).apply {
-                text = "▼ Council detail"; textSize = 11f
-                setTextColor(0xFF7B6FA0.toInt()); setPadding(6, 4, 6, 0)
+                text = "▼ Council detail"
+                textSize = 11f
+                setTextColor(0xFF7B6FA0.toInt())
+                setPadding(6, 4, 6, 0)
                 setOnClickListener {
-                    if (debugPanel.visibility == View.GONE) { debugPanel.visibility = View.VISIBLE; text = "▲ Hide detail" }
-                    else { debugPanel.visibility = View.GONE; text = "▼ Council detail" }
+                    if (debugPanel.visibility == View.GONE) {
+                        debugPanel.visibility = View.VISIBLE
+                        text = "▲ Hide detail"
+                    } else {
+                        debugPanel.visibility = View.GONE
+                        text = "▼ Council detail"
+                    }
                 }
             }
             row.addView(toggle)
@@ -1069,8 +1109,12 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private fun clearLastCamera() { lastCameraBase64 = null }
 
     private fun sendCameraImageToTony(userPrompt: String, imageBase64: String) {
-        val rawProvider = backendProviderForCurrentBrain() ?: "claude"
-        val provider = if (rawProvider == "council") "claude" else rawProvider
+        // Use Claude for vision if available, otherwise Gemini, otherwise current brain
+        val rawProvider = backendProviderForCurrentBrain() ?: "gemini"
+        val provider = when (rawProvider) {
+            "council" -> "gemini" // Council doesn't support vision directly, use Gemini
+            else -> rawProvider
+        }
         val history = buildFullHistory()
         val doc = DocumentStore.getDocument(this)
         statusText.text = "Analysing image..."
@@ -1206,6 +1250,10 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             BrainMode.OPENAI_LIVE -> "openai"
             BrainMode.GEMINI_MOCK -> "gemini"
             BrainMode.CLAUDE_MOCK -> "claude"
+            BrainMode.GROQ -> "groq"
+            BrainMode.MISTRAL -> "mistral"
+            BrainMode.DEEPSEEK -> "deepseek"
+            BrainMode.OPENROUTER -> "openrouter"
             BrainMode.COUNCIL_MOCK -> "council"
             else -> null
         }
