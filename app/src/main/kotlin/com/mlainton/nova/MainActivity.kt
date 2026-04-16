@@ -212,7 +212,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         statusText.text = "Syncing codebase to Tony..."
         Thread {
             val files = mutableMapOf<String, String>()
-
             val projectRoot = File("/storage/emulated/0/Download/Nova_phase3e")
             projectRoot.walkTopDown()
                 .filter { it.isFile && it.extension == "kt" }
@@ -225,14 +224,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         }
                     } catch (_: Exception) {}
                 }
-
             try {
                 val gradle = File("/storage/emulated/0/Download/Nova_phase3e/app/build.gradle")
                 if (gradle.exists()) files["app/build.gradle"] = gradle.readText()
             } catch (_: Exception) {}
-
             val ok = if (files.isNotEmpty()) NovaApiClient.syncCodebase(files) else false
-
             runOnUiThread {
                 if (ok) {
                     statusText.text = "Synced ${files.size} files to Tony"
@@ -626,10 +622,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     val report = NovaApiClient.getMorningReport()
                     if (report != null) {
                         runOnUiThread {
-                            ChatHistoryStore.appendMessage(
-                                this, "tony", report,
-                                provider = "think_engine"
-                            )
+                            ChatHistoryStore.appendMessage(this, "tony", report, provider = "think_engine")
                             renderChatHistory()
                         }
                     }
@@ -793,7 +786,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             })
         }
 
-        // Council debug panel — shows who said what, who decided, who failed
         if (!isUser && message.provider == "council" && message.debugData.isNotEmpty()) {
             val debugPanel = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -818,10 +810,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     setTextIsSelectable(true)
                 }
 
-                // Header — who decided
                 debugPanel.addView(debugLine("🧠 Decided by: $decidingBrain", 0xFFE0D0FF.toInt()))
 
-                // Who participated and who failed
                 if (providersUsed != null && providersUsed.length() > 0) {
                     val used = (0 until providersUsed.length()).map { providersUsed.getString(it) }
                     debugPanel.addView(debugLine("✅ Active: ${used.joinToString(", ")}"))
@@ -830,31 +820,24 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     val failed = (0 until providersFailed.length()).map { providersFailed.getString(it) }
                     debugPanel.addView(debugLine("❌ Failed: ${failed.joinToString(", ")}", 0xFFCC8888.toInt()))
                 }
-
-                // Round 1
                 if (round1 != null && round1.length() > 0) {
                     debugPanel.addView(debugLine("── Round 1 ──", 0xFF9B8FBF.toInt()))
                     round1.keys().forEach { key ->
-                        val val1 = round1.optString(key)
-                        debugPanel.addView(debugLine("$key: ${val1.take(150)}${if (val1.length > 150) "…" else ""}"))
+                        val v = round1.optString(key)
+                        debugPanel.addView(debugLine("$key: ${v.take(150)}${if (v.length > 150) "…" else ""}"))
                     }
                 }
-
-                // Challenge
                 if (challenge.isNotEmpty()) {
                     debugPanel.addView(debugLine("── Challenge ──", 0xFF9B8FBF.toInt()))
                     debugPanel.addView(debugLine(challenge.take(300)))
                 }
-
-                // Round 2
                 if (round2 != null && round2.length() > 0) {
                     debugPanel.addView(debugLine("── Round 2 ──", 0xFF9B8FBF.toInt()))
                     round2.keys().forEach { key ->
-                        val val2 = round2.optString(key)
-                        debugPanel.addView(debugLine("$key: ${val2.take(150)}${if (val2.length > 150) "…" else ""}"))
+                        val v = round2.optString(key)
+                        debugPanel.addView(debugLine("$key: ${v.take(150)}${if (v.length > 150) "…" else ""}"))
                     }
                 }
-
             } catch (_: Exception) {
                 debugPanel.addView(TextView(this).apply {
                     text = "Debug data unavailable"
@@ -1109,18 +1092,40 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private fun clearLastCamera() { lastCameraBase64 = null }
 
     private fun sendCameraImageToTony(userPrompt: String, imageBase64: String) {
-        // Use Claude for vision if available, otherwise Gemini, otherwise current brain
         val rawProvider = backendProviderForCurrentBrain() ?: "gemini"
         val provider = when (rawProvider) {
-            "council" -> "gemini" // Council doesn't support vision directly, use Gemini
+            "council" -> "gemini"
             else -> rawProvider
         }
-        val history = buildFullHistory()
+        val history = buildBackendHistoryFor(userPrompt)
         val doc = DocumentStore.getDocument(this)
         statusText.text = "Analysing image..."
 
+        val streamingBubble = TextView(this).apply {
+            text = "▍"
+            textSize = 16f
+            setTextColor(0xFF111111.toInt())
+            maxWidth = (resources.displayMetrics.widthPixels * 0.76f).toInt()
+            setPadding(18, 12, 18, 12)
+            background = ContextCompat.getDrawable(this@MainActivity, R.drawable.chat_bubble_tony)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.START
+                setMargins(0, 0, 0, 6)
+            }
+        }
+
+        runOnUiThread {
+            chatContainer.addView(streamingBubble)
+            chatScrollView.post { chatScrollView.fullScroll(View.FOCUS_DOWN) }
+        }
+
+        val fullText = StringBuilder()
+
         Thread {
-            val result = NovaApiClient.sendChat(
+            NovaApiClient.sendChatStream(
                 provider = provider,
                 message = userPrompt,
                 history = history,
@@ -1129,18 +1134,29 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 documentBase64 = doc?.base64,
                 documentName = doc?.name,
                 documentMime = doc?.mimeType,
-                imageBase64 = imageBase64
+                imageBase64 = imageBase64,
+                onChunk = { chunk ->
+                    fullText.append(chunk)
+                    runOnUiThread {
+                        markwon.setMarkdown(streamingBubble, fullText.toString() + " ▍")
+                        chatScrollView.post { chatScrollView.fullScroll(View.FOCUS_DOWN) }
+                    }
+                },
+                onDone = { ok, completeText, error ->
+                    val finalReply = completeText.ifBlank {
+                        "Tony couldn't analyse the image right now. Please try again."
+                    }
+                    runOnUiThread {
+                        chatContainer.removeView(streamingBubble)
+                        ChatHistoryStore.appendMessage(this, "tony", finalReply, provider = provider)
+                        statusText.text = if (ok) "Tony is ready." else "Couldn't analyse image. Try again."
+                        renderChatHistory()
+                        refreshChatList()
+                        speakTony(finalReply)
+                        triggerSummarisationWithHistory(buildFullHistory())
+                    }
+                }
             )
-            runOnUiThread {
-                val replyText = if (result.reply.isNotBlank()) result.reply
-                    else "Tony couldn't analyse the image right now. Please try again."
-                ChatHistoryStore.appendMessage(this, "tony", replyText, provider = provider)
-                statusText.text = if (result.ok) "Tony is ready." else "Couldn't analyse image. Try again."
-                renderChatHistory()
-                refreshChatList()
-                speakTony(replyText)
-                triggerSummarisationWithHistory(buildFullHistory())
-            }
         }.start()
     }
 
@@ -1288,7 +1304,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val doc = DocumentStore.getDocument(this)
         statusText.text = "Thinking with ${currentBrainMode.displayName}..."
 
-        // Council uses the non-streaming endpoint
         if (provider == "council") {
             Thread {
                 val result = NovaApiClient.sendCouncil(
@@ -1332,7 +1347,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             return
         }
 
-        // All other providers stream word by word
         val streamingBubble = TextView(this).apply {
             text = "▍"
             textSize = 16f
