@@ -882,25 +882,31 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private fun speakTony(text: String) {
         if (text.isBlank()) return
+        // Truncate to first 500 chars for voice — speak the start of the reply
+        val speakText = text.take(500).trimEnd { !it.isLetterOrDigit() && it != '.' && it != '!' && it != '?' }
         Thread {
             try {
                 val url = java.net.URL("https://web-production-be42b.up.railway.app/api/v1/voice/speak")
                 val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
                     requestMethod = "POST"
-                    connectTimeout = 8000
-                    readTimeout = 20000
+                    connectTimeout = 10000
+                    readTimeout = 30000
                     doOutput = true
                     setRequestProperty("Authorization", "Bearer nova-dev-token")
                     setRequestProperty("Content-Type", "application/json")
                 }
                 val body = org.json.JSONObject().apply {
-                    put("text", text.take(2000))
+                    put("text", speakText)
                     put("voice", "en-GB-RyanNeural")
                 }.toString()
                 conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-                if (conn.responseCode == 200) {
-                    val json = org.json.JSONObject(conn.inputStream.bufferedReader().readText())
+                val responseCode = conn.responseCode
+                android.util.Log.d("TONY_VOICE", "Response code: $responseCode")
+                if (responseCode == 200) {
+                    val responseText = conn.inputStream.bufferedReader().readText()
+                    val json = org.json.JSONObject(responseText)
                     val audioB64 = json.optString("audio_base64", "")
+                    android.util.Log.d("TONY_VOICE", "Audio b64 length: ${audioB64.length}")
                     if (audioB64.isNotEmpty()) {
                         val bytes = android.util.Base64.decode(audioB64, android.util.Base64.DEFAULT)
                         val tmp = java.io.File(cacheDir, "tony_voice.mp3")
@@ -915,14 +921,20 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                                 statusText.text = "Tony is speaking..."
                                 player.setOnCompletionListener { it.release() }
                             } catch (e: Exception) {
-                                speakTonyFallback(text)
+                                android.util.Log.e("TONY_VOICE", "MediaPlayer failed: ${e.message}")
+                                speakTonyFallback(speakText)
                             }
                         }
                         return@Thread
                     }
+                } else {
+                    val err = conn.errorStream?.bufferedReader()?.readText() ?: "no error body"
+                    android.util.Log.e("TONY_VOICE", "Backend error $responseCode: $err")
                 }
-            } catch (_: Exception) {}
-            runOnUiThread { speakTonyFallback(text) }
+            } catch (e: Exception) {
+                android.util.Log.e("TONY_VOICE", "Request failed: ${e.message}")
+            }
+            runOnUiThread { speakTonyFallback(speakText) }
         }.start()
     }
 
