@@ -68,6 +68,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var drawerCloseButton: Button
     private lateinit var drawerNewChatButton: Button
     private lateinit var drawerSyncCodebaseButton: Button
+    private lateinit var drawerOnDeviceButton: Button
 
     private var tts: TextToSpeech? = null
     private var ttsReady = false
@@ -121,6 +122,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         drawerCloseButton = findViewById(R.id.drawerCloseButton)
         drawerNewChatButton = findViewById(R.id.drawerNewChatButton)
         drawerSyncCodebaseButton = findViewById(R.id.drawerSyncCodebaseButton)
+        drawerOnDeviceButton = findViewById(R.id.drawerOnDeviceButton)
 
         currentBrainMode = BrokerPrefs.getBrainMode(this)
         renderBrainMode()
@@ -163,6 +165,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         drawerSyncCodebaseButton.setOnClickListener {
             drawerLayout.closeDrawer(GravityCompat.START)
             syncCodebaseToTony()
+        }
+
+        drawerOnDeviceButton.setOnClickListener {
+            drawerLayout.closeDrawer(GravityCompat.START)
+            showOnDeviceModelStatus()
         }
 
         plusButton.setOnClickListener { showPlusMenu(it) }
@@ -942,6 +949,52 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 }
             } catch (_: Exception) {}
         }.start()
+    }
+
+    private fun showOnDeviceModelStatus() {
+        val downloaded = OnDeviceModel.isModelDownloaded(this)
+        val ready = OnDeviceModel.isReady()
+        val message = when {
+            ready -> "On-device model is ready. Switch to 'Local Tony' brain mode to use it offline."
+            downloaded -> "Model downloaded but not initialised. Restart the app."
+            else -> "On-device model not downloaded yet (1.5GB). Download it to use Tony offline?\n\nThis requires a Wi-Fi connection and will take several minutes."
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("On-Device Model (Offline Tony)")
+            .setMessage(message)
+            .setPositiveButton(if (downloaded) "OK" else "Download") { _, _ ->
+                if (!downloaded) startModelDownload()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun startModelDownload() {
+        statusText.text = "Downloading Gemma model (1.5GB)..."
+        OnDeviceModel.downloadModel(
+            this,
+            onProgress = { progress ->
+                runOnUiThread { statusText.text = "Downloading: $progress%" }
+            },
+            onComplete = { success ->
+                runOnUiThread {
+                    if (success) {
+                        statusText.text = "Model downloaded. Initialising..."
+                        Thread {
+                            val ok = OnDeviceModel.initialise(this)
+                            runOnUiThread {
+                                statusText.text = if (ok) "On-device model ready." else "Initialisation failed."
+                                android.widget.Toast.makeText(this,
+                                    if (ok) "Tony can now run offline." else "Model init failed — restart app.",
+                                    android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        }.start()
+                    } else {
+                        statusText.text = "Download failed. Check connection."
+                    }
+                }
+            }
+        )
     }
 
     private fun requestCalendarPermission() {
