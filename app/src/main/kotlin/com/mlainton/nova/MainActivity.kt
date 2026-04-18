@@ -40,6 +40,8 @@ import io.noties.markwon.Markwon
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.Locale
+import android.location.Location
+import android.location.LocationManager
 
 class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
@@ -78,12 +80,14 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var lastCameraBase64: String? = null
     private var photoUri: Uri? = null
     private var morningReportChecked = false
+    private var lastKnownLocation: String? = null
 
     companion object {
         private const val PICK_FILE_REQUEST = 1001
         private const val CAMERA_REQUEST = 1002
         private const val VOICE_REQUEST = 1003
         private const val CAMERA_PERMISSION_REQUEST = 2001
+        private const val LOCATION_PERMISSION_REQUEST = 2002
         private const val DEFAULT_INPUT_HINT = "Message Tony..."
         private const val CAMERA_INPUT_HINT = "Ask Tony about this image..."
         private const val FILE_INPUT_HINT = "Ask Tony about this file..."
@@ -206,6 +210,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
 
         tts = TextToSpeech(this, this)
+        fetchLocationInBackground()
         renderChatHistory()
     }
 
@@ -881,6 +886,28 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         imm?.showSoftInput(inputText, InputMethodManager.SHOW_IMPLICIT)
     }
 
+    private fun fetchLocationInBackground() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                LOCATION_PERMISSION_REQUEST
+            )
+            return
+        }
+        Thread {
+            try {
+                val lm = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+                val location = lm.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                    ?: lm.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+                if (location != null) {
+                    lastKnownLocation = "${location.latitude},${location.longitude}"
+                }
+            } catch (_: Exception) {}
+        }.start()
+    }
+
     private fun speakTony(text: String) {
         if (text.isBlank()) return
         // Truncate to first 500 chars for voice — speak the start of the reply
@@ -995,6 +1022,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 openCameraWithFileProvider()
             } else {
                 Toast.makeText(this, "Camera permission is needed to take photos.", Toast.LENGTH_LONG).show()
+            }
+        }
+        if (requestCode == LOCATION_PERMISSION_REQUEST) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                fetchLocationInBackground()
             }
         }
     }
@@ -1379,6 +1411,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private fun sendMessageToNovaBackend(currentMessage: String, provider: String) {
         val history = buildBackendHistoryFor(currentMessage)
         val doc = DocumentStore.getDocument(this)
+        val locationContext = lastKnownLocation?.let { "Matthew's current location coordinates: $it" }
         statusText.text = "Thinking with ${currentBrainMode.displayName}..."
 
         if (provider == "council") {
@@ -1386,7 +1419,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 val result = NovaApiClient.sendCouncil(
                     message = currentMessage,
                     history = history,
-                    context = null,
+                    context = locationContext,
                     documentText = doc?.text,
                     documentBase64 = doc?.base64,
                     documentName = doc?.name,
@@ -1452,7 +1485,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 provider = provider,
                 message = currentMessage,
                 history = history,
-                context = null,
+                context = locationContext,
                 documentText = doc?.text,
                 documentBase64 = doc?.base64,
                 documentName = doc?.name,
