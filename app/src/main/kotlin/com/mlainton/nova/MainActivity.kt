@@ -382,63 +382,27 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun correctVoiceTranscription(text: String): String {
-        // Common voice transcription errors — correct silently before sending
-        val corrections = mapOf(
-            "calender" to "calendar",
-            "calandar" to "calendar",
-            "calander" to "calendar",
-            "tommorrow" to "tomorrow",
-            "tommorow" to "tomorrow",
-            "tomorow" to "tomorrow",
-            "yesturday" to "yesterday",
-            "scedule" to "schedule",
-            "shedule" to "schedule",
-            "recieve" to "receive",
-            "beleive" to "believe",
-            "seperate" to "separate",
-            "definately" to "definitely",
-            "occured" to "occurred",
-            "untill" to "until",
-            "accomodation" to "accommodation",
-            "wierd" to "weird",
-            "freind" to "friend",
-            "dont" to "don't",
-            "cant" to "can't",
-            "wont" to "won't",
-            "isnt" to "isn't",
-            "didnt" to "didn't",
-            "wasnt" to "wasn't",
-            "havent" to "haven't",
-            "wouldnt" to "wouldn't",
-            "shouldnt" to "shouldn't",
-            "im " to "I'm ",
-            "ive " to "I've ",
-            "id " to "I'd ",
-            "ill " to "I'll ",
-            "whats" to "what's",
-            "whos" to "who's",
-            "thats" to "that's",
-            "its " to "it's ",
-            "hes " to "he's ",
-            "shes " to "she's ",
-            "theyre" to "they're",
-            "youre" to "you're",
-            "were " to "we're ",
-            "sidai" to "Sid Bailey",
-            "sid bailey" to "Sid Bailey",
-            "georgina" to "Georgina",
-            "amelia" to "Amelia",
-            "margot" to "Margot"
-        )
-        
-        var result = text
-        for ((wrong, right) in corrections) {
-            // Case-insensitive replacement preserving sentence structure
-            result = result.replace(wrong, right, ignoreCase = true)
+        // Call backend for intelligent AI-powered correction
+        // Falls back to original if backend unavailable
+        return try {
+            val url = java.net.URL("https://web-production-be42b.up.railway.app/api/v1/voice/correct")
+            val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 3000
+                readTimeout = 4000
+                doOutput = true
+                setRequestProperty("Authorization", "Bearer nova-dev-token")
+                setRequestProperty("Content-Type", "application/json")
+            }
+            val body = org.json.JSONObject().apply { put("text", text) }.toString()
+            conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            if (conn.responseCode == 200) {
+                val json = org.json.JSONObject(conn.inputStream.bufferedReader().readText())
+                json.optString("corrected", text)
+            } else text
+        } catch (_: Exception) {
+            text.trimStart().replaceFirstChar { it.uppercase() }
         }
-        
-        // Capitalise first letter
-        return result.trimStart().replaceFirstChar { it.uppercase() }
     }
 
     private fun sendCurrentMessage() {
@@ -1190,12 +1154,23 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             val results = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
             val spokenText = results?.firstOrNull()?.trim().orEmpty()
             if (spokenText.isNotEmpty()) {
-                val corrected = correctVoiceTranscription(spokenText)
-                inputText.setText(corrected)
-                inputText.setSelection(corrected.length)
-                statusText.text = if (pendingCameraBase64 != null)
-                    "Image ready — tap send when ready."
-                else "Voice heard. Tap send when ready."
+                // Set immediately so user sees something
+                inputText.setText(spokenText)
+                inputText.setSelection(spokenText.length)
+                statusText.text = "Correcting transcription..."
+                // Correct in background then update
+                Thread {
+                    val corrected = correctVoiceTranscription(spokenText)
+                    runOnUiThread {
+                        if (corrected != spokenText) {
+                            inputText.setText(corrected)
+                            inputText.setSelection(corrected.length)
+                        }
+                        statusText.text = if (pendingCameraBase64 != null)
+                            "Image ready — tap send when ready."
+                        else "Voice heard. Tap send when ready."
+                    }
+                }.start()
             } else {
                 statusText.text = "I did not catch that."
             }
