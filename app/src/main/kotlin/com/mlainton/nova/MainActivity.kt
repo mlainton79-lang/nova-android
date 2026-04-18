@@ -909,19 +909,32 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     android.util.Log.d("TONY_VOICE", "Audio b64 length: ${audioB64.length}")
                     if (audioB64.isNotEmpty()) {
                         val bytes = android.util.Base64.decode(audioB64, android.util.Base64.DEFAULT)
-                        val tmp = java.io.File(cacheDir, "tony_voice.mp3")
+                        val tmp = java.io.File(cacheDir, "tony_voice_${System.currentTimeMillis()}.mp3")
                         tmp.writeBytes(bytes)
+                        android.util.Log.d("TONY_VOICE", "MP3 written: ${tmp.length()} bytes to ${tmp.absolutePath}")
                         runOnUiThread {
                             try {
-                                val player = android.media.MediaPlayer().apply {
-                                    setDataSource(tmp.absolutePath)
-                                    prepare()
-                                    start()
+                                val player = android.media.MediaPlayer()
+                                player.setDataSource(tmp.absolutePath)
+                                player.setOnPreparedListener { mp ->
+                                    android.util.Log.d("TONY_VOICE", "MediaPlayer prepared, starting")
+                                    mp.start()
+                                    statusText.text = "Tony is speaking..."
                                 }
-                                statusText.text = "Tony is speaking..."
-                                player.setOnCompletionListener { it.release() }
+                                player.setOnCompletionListener { mp ->
+                                    android.util.Log.d("TONY_VOICE", "Playback complete")
+                                    mp.release()
+                                    tmp.delete()
+                                }
+                                player.setOnErrorListener { mp, what, extra ->
+                                    android.util.Log.e("TONY_VOICE", "MediaPlayer error: what=$what extra=$extra")
+                                    mp.release()
+                                    speakTonyFallback(speakText)
+                                    true
+                                }
+                                player.prepareAsync()
                             } catch (e: Exception) {
-                                android.util.Log.e("TONY_VOICE", "MediaPlayer failed: ${e.message}")
+                                android.util.Log.e("TONY_VOICE", "MediaPlayer setup failed: ${e.message}")
                                 speakTonyFallback(speakText)
                             }
                         }
