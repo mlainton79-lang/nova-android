@@ -881,6 +881,52 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun speakTony(text: String) {
+        if (text.isBlank()) return
+        Thread {
+            try {
+                val url = java.net.URL("https://web-production-be42b.up.railway.app/api/v1/voice/speak")
+                val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    connectTimeout = 8000
+                    readTimeout = 20000
+                    doOutput = true
+                    setRequestProperty("Authorization", "Bearer nova-dev-token")
+                    setRequestProperty("Content-Type", "application/json")
+                }
+                val body = org.json.JSONObject().apply {
+                    put("text", text.take(2000))
+                    put("voice", "en-GB-RyanNeural")
+                }.toString()
+                conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+                if (conn.responseCode == 200) {
+                    val json = org.json.JSONObject(conn.inputStream.bufferedReader().readText())
+                    val audioB64 = json.optString("audio_base64", "")
+                    if (audioB64.isNotEmpty()) {
+                        val bytes = android.util.Base64.decode(audioB64, android.util.Base64.DEFAULT)
+                        val tmp = java.io.File(cacheDir, "tony_voice.mp3")
+                        tmp.writeBytes(bytes)
+                        runOnUiThread {
+                            try {
+                                val player = android.media.MediaPlayer().apply {
+                                    setDataSource(tmp.absolutePath)
+                                    prepare()
+                                    start()
+                                }
+                                statusText.text = "Tony is speaking..."
+                                player.setOnCompletionListener { it.release() }
+                            } catch (e: Exception) {
+                                speakTonyFallback(text)
+                            }
+                        }
+                        return@Thread
+                    }
+                }
+            } catch (_: Exception) {}
+            runOnUiThread { speakTonyFallback(text) }
+        }.start()
+    }
+
+    private fun speakTonyFallback(text: String) {
         val engine = tts
         if (!ttsReady || engine == null) return
         statusText.text = "Tony is speaking..."
@@ -1401,6 +1447,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         statusText.text = if (ok) "Tony is ready."
                             else "${currentBrainMode.displayName} couldn't connect. Try again."
                         renderChatHistory()
+                        speakTony(finalReply)
                         refreshChatList()
                         triggerSummarisationWithHistory(buildFullHistory())
                     }
