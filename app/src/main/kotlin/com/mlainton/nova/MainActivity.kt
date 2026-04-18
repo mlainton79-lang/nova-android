@@ -381,6 +381,66 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
+    private fun correctVoiceTranscription(text: String): String {
+        // Common voice transcription errors — correct silently before sending
+        val corrections = mapOf(
+            "calender" to "calendar",
+            "calandar" to "calendar",
+            "calander" to "calendar",
+            "tommorrow" to "tomorrow",
+            "tommorow" to "tomorrow",
+            "tomorow" to "tomorrow",
+            "yesturday" to "yesterday",
+            "scedule" to "schedule",
+            "shedule" to "schedule",
+            "recieve" to "receive",
+            "beleive" to "believe",
+            "seperate" to "separate",
+            "definately" to "definitely",
+            "occured" to "occurred",
+            "untill" to "until",
+            "accomodation" to "accommodation",
+            "wierd" to "weird",
+            "freind" to "friend",
+            "dont" to "don't",
+            "cant" to "can't",
+            "wont" to "won't",
+            "isnt" to "isn't",
+            "didnt" to "didn't",
+            "wasnt" to "wasn't",
+            "havent" to "haven't",
+            "wouldnt" to "wouldn't",
+            "shouldnt" to "shouldn't",
+            "im " to "I'm ",
+            "ive " to "I've ",
+            "id " to "I'd ",
+            "ill " to "I'll ",
+            "whats" to "what's",
+            "whos" to "who's",
+            "thats" to "that's",
+            "its " to "it's ",
+            "hes " to "he's ",
+            "shes " to "she's ",
+            "theyre" to "they're",
+            "youre" to "you're",
+            "were " to "we're ",
+            "sidai" to "Sid Bailey",
+            "sid bailey" to "Sid Bailey",
+            "georgina" to "Georgina",
+            "amelia" to "Amelia",
+            "margot" to "Margot"
+        )
+        
+        var result = text
+        for ((wrong, right) in corrections) {
+            // Case-insensitive replacement preserving sentence structure
+            result = result.replace(wrong, right, ignoreCase = true)
+        }
+        
+        // Capitalise first letter
+        return result.trimStart().replaceFirstChar { it.uppercase() }
+    }
+
     private fun sendCurrentMessage() {
         val message = inputText.text.toString().trim()
 
@@ -1130,8 +1190,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             val results = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
             val spokenText = results?.firstOrNull()?.trim().orEmpty()
             if (spokenText.isNotEmpty()) {
-                inputText.setText(spokenText)
-                inputText.setSelection(spokenText.length)
+                val corrected = correctVoiceTranscription(spokenText)
+                inputText.setText(corrected)
+                inputText.setSelection(corrected.length)
                 statusText.text = if (pendingCameraBase64 != null)
                     "Image ready — tap send when ready."
                 else "Voice heard. Tap send when ready."
