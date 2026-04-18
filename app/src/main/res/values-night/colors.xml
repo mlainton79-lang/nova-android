@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
+    <color name="nova_black">#000000</color>
+    <color name="nova_surface">#0A0A0F</color>
+    <color name="nova_cyan">#00D4FF</color>
+    <color name="nova_text_primary">#EEEEFF</color>
+    <color name="nova_text_secondary">#8888AA</color>
+    <color name="nova_text_dim">#555570</color>
+    <color name="nova_border">#1E1E2E</color>
+    <color name="nova_cyan_dim">#0099BB</color>
 </resources>

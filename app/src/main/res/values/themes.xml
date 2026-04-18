@@ -1,6 +1,31 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
-  <style name="Base.AppTheme" parent="Theme.Material3.DayNight.NoActionBar">
-  </style>
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@color/nova_black</item>
+        <item name="android:statusBarColor">#000000</item>
+        <item name="android:navigationBarColor">#000000</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:colorPrimary">#00D4FF</item>
+        <item name="android:colorPrimaryDark">#000000</item>
+        <item name="android:colorAccent">#00D4FF</item>
+        <item name="android:textColor">@color/nova_text_primary</item>
+        <item name="android:editTextStyle">@style/NovaEditText</item>
+        <item name="buttonStyle">@style/NovaButton</item>
+    </style>
 
-  <style name="AppTheme" parent="Base.AppTheme" />
+    <style name="NovaEditText" parent="Widget.AppCompat.EditText">
+        <item name="android:textColor">@color/nova_text_primary</item>
+        <item name="android:textColorHint">@color/nova_text_dim</item>
+        <item name="android:background">@android:color/transparent</item>
+    </style>
+
+    <style name="NovaButton" parent="Widget.AppCompat.Button">
+        <item name="android:background">@drawable/drawer_button_bg</item>
+        <item name="android:textColor">@color/nova_text_primary</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:paddingTop">10dp</item>
+        <item name="android:paddingBottom">10dp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:letterSpacing">0.02</item>
+    </style>
 </resources>

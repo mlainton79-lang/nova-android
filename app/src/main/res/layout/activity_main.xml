@@ -1,49 +1,56 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.drawerlayout.widget.DrawerLayout
-        xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/drawerLayout"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@color/nova_black">
 
+    <!-- Main content -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:padding="14dp">
+        android:background="@color/nova_black">
 
+        <!-- Top bar -->
         <LinearLayout
             android:id="@+id/topBar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
-            android:layout_marginBottom="8dp"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp"
             android:orientation="horizontal">
 
             <ImageButton
                 android:id="@+id/menuButton"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:background="@drawable/icon_button_bg"
                 android:contentDescription="Open menu"
                 android:padding="10dp"
                 android:src="@android:drawable/ic_menu_sort_by_size"
-                android:tint="#231B34" />
+                android:tint="@color/nova_text_secondary" />
 
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:orientation="vertical"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp">
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp">
 
                 <TextView
                     android:id="@+id/titleText"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Nova"
-                    android:textColor="#FFFFFF"
-                    android:textSize="30sp"
+                    android:text="NOVA"
+                    android:textColor="@color/nova_text_primary"
+                    android:textSize="22sp"
+                    android:letterSpacing="0.15"
                     android:textStyle="bold" />
 
                 <TextView
@@ -51,8 +58,9 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Assistant identity: Tony"
-                    android:textColor="#D6D0E2"
-                    android:textSize="16sp" />
+                    android:textColor="@color/nova_text_dim"
+                    android:textSize="12sp"
+                    android:letterSpacing="0.05" />
             </LinearLayout>
 
             <TextView
@@ -60,38 +68,55 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:background="@drawable/brain_pill_bg"
-                android:paddingStart="12dp"
-                android:paddingTop="8dp"
-                android:paddingEnd="12dp"
-                android:paddingBottom="8dp"
-                android:text="OpenAI"
-                android:textColor="#231B34"
-                android:textSize="13sp"
+                android:paddingStart="14dp"
+                android:paddingTop="6dp"
+                android:paddingEnd="14dp"
+                android:paddingBottom="6dp"
+                android:text="Gemini"
+                android:textColor="@color/nova_cyan"
+                android:textSize="12sp"
+                android:letterSpacing="0.08"
                 android:textStyle="bold" />
         </LinearLayout>
 
+        <!-- Thin cyan divider under top bar -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#0D3D55" />
+
+        <!-- Status bar -->
         <TextView
             android:id="@+id/statusText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="#EFEFEF"
-            android:paddingStart="10dp"
-            android:paddingTop="8dp"
-            android:paddingEnd="10dp"
-            android:paddingBottom="8dp"
+            android:background="@drawable/status_bg"
+            android:paddingStart="14dp"
+            android:paddingTop="7dp"
+            android:paddingEnd="14dp"
+            android:paddingBottom="7dp"
             android:text="Tony is ready."
-            android:textColor="#2A2238"
-            android:textSize="13sp"
-            android:layout_marginBottom="8dp" />
+            android:textColor="@color/nova_cyan_dim"
+            android:textSize="12sp"
+            android:letterSpacing="0.03"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="6dp" />
 
+        <!-- Chat area -->
         <ScrollView
             android:id="@+id/chatScrollView"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:background="#0F0B17"
-            android:padding="8dp"
-            android:scrollbars="vertical">
+            android:background="@color/nova_black"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:scrollbars="none"
+            android:clipToPadding="false">
 
             <LinearLayout
                 android:id="@+id/chatContainer"
@@ -100,22 +125,28 @@
                 android:orientation="vertical" />
         </ScrollView>
 
+        <!-- Photo preview -->
         <ImageView
             android:id="@+id/photoPreview"
             android:layout_width="match_parent"
-            android:layout_height="120dp"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="8dp"
-            android:background="#1A1A1A"
+            android:layout_height="110dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="6dp"
+            android:background="#0A0A14"
             android:contentDescription="Camera preview"
             android:scaleType="centerCrop"
             android:visibility="gone" />
 
+        <!-- Composer row -->
         <LinearLayout
             android:id="@+id/composerRow"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:layout_marginTop="6dp"
+            android:layout_marginBottom="14dp"
             android:background="@drawable/composer_bg"
             android:gravity="center_vertical"
             android:orientation="horizontal"
@@ -123,67 +154,100 @@
 
             <ImageButton
                 android:id="@+id/plusButton"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:background="@drawable/icon_button_bg"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@android:color/transparent"
                 android:contentDescription="More actions"
                 android:padding="10dp"
                 android:src="@android:drawable/ic_input_add"
-                android:tint="#231B34" />
+                android:tint="@color/nova_text_secondary" />
 
             <EditText
                 android:id="@+id/inputText"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:layout_marginStart="8dp"
-                android:layout_marginEnd="8dp"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
                 android:background="@android:color/transparent"
                 android:hint="Message Tony..."
-                android:textColor="#FFFFFF"
-                android:textColorHint="#8E86A1"
+                android:textColor="@color/nova_text_primary"
+                android:textColorHint="@color/nova_text_dim"
                 android:maxLines="4"
                 android:minLines="1"
                 android:padding="6dp"
-                android:textSize="18sp" />
+                android:textSize="16sp"
+                android:cursorVisible="true" />
 
             <ImageButton
                 android:id="@+id/micButton"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:layout_marginEnd="8dp"
-                android:background="@drawable/icon_button_bg"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@android:color/transparent"
                 android:contentDescription="Voice input"
                 android:padding="10dp"
                 android:src="@android:drawable/ic_btn_speak_now"
-                android:tint="#231B34" />
+                android:tint="@color/nova_text_secondary" />
 
             <ImageButton
                 android:id="@+id/sendButton"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:background="@drawable/icon_button_bg"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/send_button_bg"
                 android:contentDescription="Send"
                 android:padding="10dp"
                 android:src="@android:drawable/ic_menu_send"
-                android:tint="#231B34" />
+                android:tint="@color/nova_cyan" />
         </LinearLayout>
 
     </LinearLayout>
 
+    <!-- Drawer panel -->
     <LinearLayout
         android:id="@+id/drawerPanel"
-        android:layout_width="300dp"
+        android:layout_width="290dp"
         android:layout_height="match_parent"
         android:layout_gravity="start"
         android:background="@drawable/drawer_panel_bg"
         android:orientation="vertical">
 
+        <!-- Drawer header -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:paddingTop="20dp"
+            android:paddingBottom="14dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="NOVA"
+                android:textColor="@color/nova_cyan"
+                android:textSize="18sp"
+                android:letterSpacing="0.15"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Tony — your AI"
+                android:textColor="@color/nova_text_dim"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/nova_border" />
+
         <Button
             android:id="@+id/drawerNewChatButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="+ New chat"
+            android:text="+ New conversation"
             android:textAllCaps="false"
             android:layout_margin="12dp" />
 
@@ -198,15 +262,15 @@
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
-            android:background="#33FFFFFF"
+            android:background="@color/nova_border"
             android:layout_marginTop="4dp"
-            android:layout_marginBottom="4dp" />
+            android:layout_marginBottom="8dp" />
 
         <Button
             android:id="@+id/drawerBrainButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Choose brain"
+            android:text="⚡ Switch brain"
             android:textAllCaps="false"
             android:layout_marginStart="12dp"
             android:layout_marginEnd="12dp"
@@ -216,7 +280,7 @@
             android:id="@+id/drawerTasksButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Open task list"
+            android:text="📋 Task list"
             android:textAllCaps="false"
             android:layout_marginStart="12dp"
             android:layout_marginEnd="12dp"
@@ -226,7 +290,7 @@
             android:id="@+id/drawerSaveTaskButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Save current text as task"
+            android:text="💾 Save as task"
             android:textAllCaps="false"
             android:layout_marginStart="12dp"
             android:layout_marginEnd="12dp"
@@ -236,7 +300,7 @@
             android:id="@+id/drawerMemoryButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="View home memory"
+            android:text="🧠 Memory"
             android:textAllCaps="false"
             android:layout_marginStart="12dp"
             android:layout_marginEnd="12dp"
@@ -246,7 +310,7 @@
             android:id="@+id/drawerTonyMemoryButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Tony's memory"
+            android:text="💭 Tony's memory"
             android:textAllCaps="false"
             android:layout_marginStart="12dp"
             android:layout_marginEnd="12dp"
@@ -256,7 +320,7 @@
             android:id="@+id/drawerClearChatButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Clear chat"
+            android:text="🗑 Clear chat"
             android:textAllCaps="false"
             android:layout_marginStart="12dp"
             android:layout_marginEnd="12dp"
@@ -266,7 +330,7 @@
             android:id="@+id/drawerSyncCodebaseButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Sync codebase to Tony"
+            android:text="⚙ Sync codebase"
             android:textAllCaps="false"
             android:layout_marginStart="12dp"
             android:layout_marginEnd="12dp"
@@ -276,11 +340,11 @@
             android:id="@+id/drawerCloseButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Close menu"
+            android:text="✕ Close"
             android:textAllCaps="false"
             android:layout_marginStart="12dp"
             android:layout_marginEnd="12dp"
-            android:layout_marginBottom="12dp" />
+            android:layout_marginBottom="16dp" />
 
     </LinearLayout>
 

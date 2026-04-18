@@ -1,6 +1,12 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
-  <style name="Base.AppTheme" parent="Theme.Material3.DayNight.NoActionBar">
-  </style>
-
-  <style name="AppTheme" parent="Base.AppTheme" />
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">#000000</item>
+        <item name="android:statusBarColor">#000000</item>
+        <item name="android:navigationBarColor">#000000</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:colorPrimary">#00D4FF</item>
+        <item name="android:colorAccent">#00D4FF</item>
+        <item name="buttonStyle">@style/NovaButton</item>
+    </style>
 </resources>

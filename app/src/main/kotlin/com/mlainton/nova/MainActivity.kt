@@ -644,7 +644,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 text = "Say hello to Tony."
                 textSize = 16f
                 setPadding(12, 12, 12, 12)
-                setTextColor(0xFFD6D0E2.toInt())
+                setTextColor(0xFF333355.toInt())
             }
             chatContainer.addView(helper)
             if (!morningReportChecked) {
@@ -802,7 +802,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             maxWidth = (resources.displayMetrics.widthPixels * 0.76f).toInt()
             setPadding(18, 12, 18, 12)
             background = getDrawable(if (isUser) R.drawable.chat_bubble_user else R.drawable.chat_bubble_tony)
-            setTextColor(if (isUser) 0xFF241C34.toInt() else 0xFF111111.toInt())
+            setTextColor(if (isUser) 0xFFDDCCFF.toInt() else 0xFFDDDDFF.toInt())
         }
         if (isUser) bubble.text = message.text
         else markwon.setMarkdown(bubble, message.text)
@@ -812,7 +812,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             row.addView(TextView(this).apply {
                 text = message.provider
                 textSize = 11f
-                setTextColor(0xFF9B8FBF.toInt())
+                setTextColor(0xFF004455.toInt())
                 setPadding(6, 2, 6, 0)
             })
         }
@@ -821,7 +821,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             val debugPanel = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 visibility = View.GONE
-                setBackgroundColor(0xFF1A1225.toInt())
+                setBackgroundColor(0xFF08080F.toInt())
                 setPadding(12, 10, 12, 10)
             }
             try {
@@ -879,7 +879,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             val toggle = TextView(this).apply {
                 text = "▼ Council detail"
                 textSize = 11f
-                setTextColor(0xFF7B6FA0.toInt())
+                setTextColor(0xFF005566.toInt())
                 setPadding(6, 4, 6, 0)
                 setOnClickListener {
                     if (debugPanel.visibility == View.GONE) {
