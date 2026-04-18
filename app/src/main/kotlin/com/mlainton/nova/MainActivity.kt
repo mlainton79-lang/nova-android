@@ -908,6 +908,56 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }.start()
     }
 
+    private fun readDeviceCalendar(): String {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALENDAR)
+            != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(
+                this, arrayOf(Manifest.permission.READ_CALENDAR), 2003
+            )
+            return ""
+        }
+        return try {
+            val now = System.currentTimeMillis()
+            val weekAhead = now + (7 * 24 * 60 * 60 * 1000L)
+            val uri = android.provider.CalendarContract.Events.CONTENT_URI
+            val projection = arrayOf(
+                android.provider.CalendarContract.Events.TITLE,
+                android.provider.CalendarContract.Events.DTSTART,
+                android.provider.CalendarContract.Events.DTEND,
+                android.provider.CalendarContract.Events.EVENT_LOCATION,
+                android.provider.CalendarContract.Events.DESCRIPTION,
+                android.provider.CalendarContract.Events.ALL_DAY
+            )
+            val selection = "${android.provider.CalendarContract.Events.DTSTART} >= ? AND ${android.provider.CalendarContract.Events.DTSTART} <= ? AND ${android.provider.CalendarContract.Events.DELETED} = 0"
+            val cursor = contentResolver.query(uri, projection, selection, arrayOf(now.toString(), weekAhead.toString()), "${android.provider.CalendarContract.Events.DTSTART} ASC")
+            val events = StringBuilder()
+            cursor?.use {
+                val titleIdx = it.getColumnIndex(android.provider.CalendarContract.Events.TITLE)
+                val startIdx = it.getColumnIndex(android.provider.CalendarContract.Events.DTSTART)
+                val endIdx = it.getColumnIndex(android.provider.CalendarContract.Events.DTEND)
+                val locationIdx = it.getColumnIndex(android.provider.CalendarContract.Events.EVENT_LOCATION)
+                val allDayIdx = it.getColumnIndex(android.provider.CalendarContract.Events.ALL_DAY)
+                while (it.moveToNext()) {
+                    val title = it.getString(titleIdx) ?: "Untitled"
+                    val start = it.getLong(startIdx)
+                    val end = it.getLong(endIdx)
+                    val location = it.getString(locationIdx) ?: ""
+                    val allDay = it.getInt(allDayIdx) == 1
+                    val fmt = java.text.SimpleDateFormat("EEE dd MMM HH:mm", java.util.Locale.UK)
+                    val startStr = if (allDay) java.text.SimpleDateFormat("EEE dd MMM", java.util.Locale.UK).format(java.util.Date(start)) else fmt.format(java.util.Date(start))
+                    val endStr = if (allDay) "" else " - ${java.text.SimpleDateFormat("HH:mm", java.util.Locale.UK).format(java.util.Date(end))}"
+                    events.append("• $title: $startStr$endStr")
+                    if (location.isNotEmpty()) events.append(" @ $location")
+                    events.append("\n")
+                }
+            }
+            events.toString().trim()
+        } catch (e: Exception) {
+            android.util.Log.e("TONY_CALENDAR", "Calendar read failed: ${e.message}")
+            ""
+        }
+    }
+
     private fun speakTony(text: String) {
         if (text.isBlank()) return
         // Truncate to first 500 chars for voice — speak the start of the reply
@@ -1412,6 +1462,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val history = buildBackendHistoryFor(currentMessage)
         val doc = DocumentStore.getDocument(this)
         val locationContext = lastKnownLocation?.let { "Matthew's current location coordinates: $it" }
+        val calendarEvents = readDeviceCalendar()
+        val calendarContext = if (calendarEvents.isNotEmpty()) "Matthew's upcoming calendar events (next 7 days):\n$calendarEvents" else null
+        val fullContext = listOfNotNull(locationContext, calendarContext).joinToString("\n").ifEmpty { null }
         statusText.text = "Thinking with ${currentBrainMode.displayName}..."
 
         if (provider == "council") {
@@ -1419,7 +1472,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 val result = NovaApiClient.sendCouncil(
                     message = currentMessage,
                     history = history,
-                    context = locationContext,
+                    context = fullContext,
                     documentText = doc?.text,
                     documentBase64 = doc?.base64,
                     documentName = doc?.name,
@@ -1485,7 +1538,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 provider = provider,
                 message = currentMessage,
                 history = history,
-                context = locationContext,
+                context = fullContext,
                 documentText = doc?.text,
                 documentBase64 = doc?.base64,
                 documentName = doc?.name,
