@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId 'com.mlainton.nova'
-        minSdk 21
+        minSdk 24
         targetSdk 34
         versionCode 1
         versionName '1.0'
@@ -42,4 +42,5 @@ dependencies {
     implementation libs.kotlinx.coroutines.android
     implementation 'io.noties.markwon:core:4.6.2'
     implementation 'androidx.exifinterface:exifinterface:1.3.7'
+    implementation 'com.google.mediapipe:tasks-genai:0.10.14'
 }

@@ -212,6 +212,13 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         tts = TextToSpeech(this, this)
         fetchLocationInBackground()
         requestCalendarPermission()
+        // Initialise on-device model if downloaded
+        Thread {
+            if (OnDeviceModel.isModelDownloaded(this)) {
+                val ok = OnDeviceModel.initialise(this)
+                android.util.Log.d("TONY", "On-device model: ${if (ok) "ready" else "failed"}")
+            }
+        }.start()
         renderChatHistory()
     }
 
@@ -598,6 +605,10 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val provider = backendProviderForCurrentBrain()
         if (provider != null) {
             sendMessageToNovaBackend(message, provider)
+            return
+        }
+        if (currentBrainMode == BrainMode.LOCAL_TONY) {
+            processOnDevice(message)
             return
         }
         if (currentBrainMode == BrainMode.OPENAI_LIVE) {
@@ -1463,6 +1474,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         tonyMediaPlayer = null
         tts?.stop()
         tts?.shutdown()
+        OnDeviceModel.shutdown()
         super.onDestroy()
     }
 
@@ -1476,8 +1488,33 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             BrainMode.DEEPSEEK -> "deepseek"
             BrainMode.OPENROUTER -> "openrouter"
             BrainMode.COUNCIL_MOCK -> "council"
+            BrainMode.LOCAL_TONY -> null // handled by on-device model
             else -> null
         }
+    }
+
+    private fun processOnDevice(message: String) {
+        if (!OnDeviceModel.isReady()) {
+            // Fall back to Gemini if on-device not ready
+            sendMessageToNovaBackend(message, "gemini")
+            return
+        }
+        statusText.text = "Tony thinking (on-device)..."
+        ChatHistoryStore.appendMessage(this, "user", message)
+        renderChatHistory()
+
+        Thread {
+            val systemPrompt = "You are Tony, Matthew's personal AI. British English. Direct, warm, honest. No filler."
+            val reply = OnDeviceModel.generate(message, systemPrompt)
+                ?: "I couldn't process that on-device. Try switching to a cloud brain."
+            runOnUiThread {
+                ChatHistoryStore.appendMessage(this, "tony", reply, provider = "on-device")
+                statusText.text = "Tony is ready. (on-device)"
+                renderChatHistory()
+                refreshChatList()
+                speakTony(reply)
+            }
+        }.start()
     }
 
     private fun buildFullHistory(): List<NovaApiClient.HistoryItem> {
