@@ -211,6 +211,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
         tts = TextToSpeech(this, this)
         fetchLocationInBackground()
+        requestCalendarPermission()
         renderChatHistory()
     }
 
@@ -906,6 +907,15 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 }
             } catch (_: Exception) {}
         }.start()
+    }
+
+    private fun requestCalendarPermission() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALENDAR)
+            != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(
+                this, arrayOf(Manifest.permission.READ_CALENDAR), 2003
+            )
+        }
     }
 
     private fun readDeviceCalendar(): String {
