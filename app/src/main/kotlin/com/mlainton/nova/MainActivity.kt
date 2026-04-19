@@ -987,46 +987,22 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun fetchTonyBriefing() {
-        // Only show briefing on fresh app open, not continuation of chat
-        val lastBriefing = getSharedPreferences("nova_prefs", MODE_PRIVATE)
-            .getLong("last_briefing", 0)
-        val now = System.currentTimeMillis()
-        // Only fetch if more than 4 hours since last briefing
-        if (now - lastBriefing < 4 * 60 * 60 * 1000L) return
+        val lastBriefing = getSharedPreferences("nova_prefs", MODE_PRIVATE).getLong("last_briefing", 0)
+        if (System.currentTimeMillis() - lastBriefing < 4 * 60 * 60 * 1000L) return
 
         Thread {
             try {
-                val url = java.net.URL("https://web-production-be42b.up.railway.app/api/v1/chat/stream")
-                val briefingMessage = "Give me a brief morning/opening update. What do I have on today? Any alerts or things that need my attention? Keep it short and direct."
-                val body = org.json.JSONObject().apply {
-                    put("provider", "gemini")
-                    put("message", briefingMessage)
-                    put("history", org.json.JSONArray())
-                }.toString()
-
+                // Use fast briefing endpoint - pulls from live state, no LLM needed
+                val url = java.net.URL("https://web-production-be42b.up.railway.app/api/v1/proactive/briefing")
                 val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
-                    requestMethod = "POST"
-                    connectTimeout = 5000
-                    readTimeout = 15000
-                    doOutput = true
+                    requestMethod = "GET"
+                    connectTimeout = 6000
+                    readTimeout = 10000
                     setRequestProperty("Authorization", "Bearer nova-dev-token")
-                    setRequestProperty("Content-Type", "application/json")
-                    setRequestProperty("Accept", "text/event-stream")
                 }
-                conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-
                 if (conn.responseCode == 200) {
-                    val fullText = StringBuilder()
-                    conn.inputStream.bufferedReader().forEachLine { line ->
-                        if (line.startsWith("data: ")) {
-                            try {
-                                val json = org.json.JSONObject(line.substring(6))
-                                val type = json.optString("type")
-                                if (type == "chunk") fullText.append(json.optString("text"))
-                            } catch (_: Exception) {}
-                        }
-                    }
-                    val briefing = fullText.toString().trim()
+                    val response = org.json.JSONObject(conn.inputStream.bufferedReader().readText())
+                    val briefing = response.optString("briefing", "").trim()
                     if (briefing.isNotEmpty()) {
                         runOnUiThread {
                             ChatHistoryStore.appendMessage(this, "tony", briefing, provider = "briefing")
