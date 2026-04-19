@@ -170,26 +170,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             showBrainPicker()
         }
 
-        drawerTasksButton.setOnClickListener {
-            drawerLayout.closeDrawer(GravityCompat.START)
-            startActivity(Intent(this, TasksActivity::class.java))
-        }
-
-        drawerSaveTaskButton.setOnClickListener {
-            drawerLayout.closeDrawer(GravityCompat.START)
-            saveCurrentTextAsTask()
-        }
-
-        drawerMemoryButton.setOnClickListener {
-            drawerLayout.closeDrawer(GravityCompat.START)
-            startActivity(Intent(this, MemoryAuditActivity::class.java))
-        }
-
-        drawerTonyMemoryButton.setOnClickListener {
-            drawerLayout.closeDrawer(GravityCompat.START)
-            startActivity(Intent(this, MemoryActivity::class.java))
-        }
-
         drawerClearChatButton.setOnClickListener {
             drawerLayout.closeDrawer(GravityCompat.START)
             clearChat()
@@ -1583,7 +1563,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         if (platform != null && imageBase64 != null) {
                             pendingVintedPlatform = null
                             statusText.text = "Tony is researching prices and writing listing..."
-                            createVintedListing(imageBase64, imageMime, platform)
+                            createVintedListing(imageBase64, "image/jpeg", platform)
                         }
                     }
                 }
