@@ -338,6 +338,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         popup.menu.add(0, 3, 2, "Vinted / eBay listing")
         popup.menu.add(0, 4, 3, "Check pending emails")
         popup.menu.add(0, 5, 4, "Get Tony's briefing now")
+        popup.menu.add(0, 6, 5, "What has Tony built?")
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 1 -> { requestCameraPermissionAndOpen(); true }
@@ -345,10 +346,63 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 3 -> { startVintedFlow(); true }
                 4 -> { checkPendingEmails(); true }
                 5 -> { requestFreshBriefing(); true }
+                6 -> { checkTonyBuilds(); true }
                 else -> false
             }
         }
         popup.show()
+    }
+
+    private fun checkTonyBuilds() {
+        statusText.text = "Tony ◆ checking builds..."
+        Thread {
+            try {
+                val url = java.net.URL("https://web-production-be42b.up.railway.app/api/v1/chat/stream")
+                val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    connectTimeout = 30000
+                    readTimeout = 30000
+                    doOutput = true
+                    setRequestProperty("Authorization", "Bearer nova-dev-token")
+                    setRequestProperty("Content-Type", "application/json")
+                    setRequestProperty("Accept", "text/event-stream")
+                }
+                val body = org.json.JSONObject().apply {
+                    put("provider", "gemini")
+                    put("message", "check pending builds")
+                    put("history", org.json.JSONArray())
+                }.toString()
+                conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+
+                val fullText = StringBuilder()
+                if (conn.responseCode == 200) {
+                    val reader = java.io.BufferedReader(java.io.InputStreamReader(conn.inputStream))
+                    var line: String?
+                    while (reader.readLine().also { line = it } != null) {
+                        val l = line ?: continue
+                        if (!l.startsWith("data:")) continue
+                        val data = l.removePrefix("data:").trim()
+                        if (data.isBlank()) continue
+                        try {
+                            val json = org.json.JSONObject(data)
+                            when (json.optString("type")) {
+                                "chunk" -> fullText.append(json.optString("text", ""))
+                                "done" -> break
+                            }
+                        } catch (_: Exception) {}
+                    }
+                }
+                val reply = fullText.toString().ifBlank { "Couldn't check builds right now." }
+                runOnUiThread {
+                    ChatHistoryStore.appendMessage(this, "tony", reply, provider = "builds")
+                    statusText.text = "Tony is ready."
+                    renderChatHistory()
+                    refreshChatList()
+                }
+            } catch (e: Exception) {
+                runOnUiThread { statusText.text = "Build check failed: ${e.message}" }
+            }
+        }.start()
     }
 
     private fun checkPendingEmails() {
@@ -638,7 +692,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             processThroughLiveBroker(message)
             return
         }
-        statusText.text = "Tony is thinking..."
+        statusText.text = "Tony ◆ thinking..."
         val result = BrainBroker.reply(currentBrainMode, message)
         handleBrokerSuccess(result)
     }
@@ -1768,17 +1822,18 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private fun sendMessageToNovaBackend(currentMessage: String, provider: String) {
         val history = buildBackendHistoryFor(currentMessage)
         val doc = DocumentStore.getDocument(this)
-        val locationContext = lastKnownLocation?.let { "Matthew's current location coordinates: $it" }
+        val locationStr = lastKnownLocation  // raw "lat,lng" sent as dedicated field
         val calendarEvents = readDeviceCalendar()
         val calendarContext = if (calendarEvents.isNotEmpty()) "Matthew's upcoming calendar events (next 7 days):\n$calendarEvents" else null
-        val fullContext = listOfNotNull(locationContext, calendarContext).joinToString("\n").ifEmpty { null }
-        statusText.text = "Tony is thinking..."
+        val fullContext = calendarContext  // context = calendar only; location sent separately
+        statusText.text = "Tony ◆ thinking..."
 
         if (provider == "Council") {
             Thread {
                 val result = NovaApiClient.sendCouncil(
                     message = currentMessage,
                     history = history,
+                    location = locationStr,
                     context = fullContext,
                     documentText = doc?.text,
                     documentBase64 = doc?.base64,
@@ -1845,6 +1900,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 provider = provider,
                 message = currentMessage,
                 history = history,
+                location = locationStr,
                 context = fullContext,
                 documentText = doc?.text,
                 documentBase64 = doc?.base64,
@@ -1871,7 +1927,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         statusText.text = if (ok) "Tony is ready."
                             else "${currentBrainMode.displayName} couldn't connect. Try again."
                         renderChatHistory()
-        fetchTonyBriefing()
                         speakTony(finalReply)
                         refreshChatList()
                         triggerSummarisationWithHistory(buildFullHistory())

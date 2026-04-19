@@ -104,6 +104,7 @@ object NovaApiClient {
         provider: String,
         message: String,
         history: List<HistoryItem>,
+        location: String? = null,
         context: String? = null,
         documentText: String? = null,
         documentBase64: String? = null,
@@ -138,6 +139,7 @@ object NovaApiClient {
                 put("provider", provider)
                 put("message", message)
                 put("history", historyJson)
+                if (!location.isNullOrBlank()) put("location", location)
                 if (!context.isNullOrBlank()) put("context", context)
                 if (!documentText.isNullOrBlank()) put("document_text", documentText)
                 if (!documentBase64.isNullOrBlank()) put("document_base64", documentBase64)
@@ -194,6 +196,7 @@ object NovaApiClient {
     fun sendCouncil(
         message: String,
         history: List<HistoryItem>,
+        location: String? = null,
         context: String? = null,
         documentText: String? = null,
         documentBase64: String? = null,
@@ -227,6 +230,7 @@ object NovaApiClient {
                 put("message", message)
                 put("history", historyJson)
                 put("debug", true)
+                if (!location.isNullOrBlank()) put("location", location)
                 if (!context.isNullOrBlank()) put("context", context)
                 if (!documentText.isNullOrBlank()) put("document_text", documentText)
                 if (!documentBase64.isNullOrBlank()) put("document_base64", documentBase64)
