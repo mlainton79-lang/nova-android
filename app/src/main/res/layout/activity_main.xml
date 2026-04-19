@@ -79,7 +79,7 @@
                 android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- Thin cyan divider under top bar -->
+        <!-- Thin cyan divider -->
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
@@ -202,7 +202,7 @@
 
     </LinearLayout>
 
-    <!-- Drawer panel -->
+    <!-- Drawer panel - stripped back to essentials only -->
     <LinearLayout
         android:id="@+id/drawerPanel"
         android:layout_width="290dp"
@@ -243,6 +243,7 @@
             android:layout_height="1dp"
             android:background="@color/nova_border" />
 
+        <!-- New conversation -->
         <Button
             android:id="@+id/drawerNewChatButton"
             android:layout_width="match_parent"
@@ -251,6 +252,7 @@
             android:textAllCaps="false"
             android:layout_margin="12dp" />
 
+        <!-- Chat history -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/chatListRecycler"
             android:layout_width="match_parent"
@@ -266,51 +268,12 @@
             android:layout_marginTop="4dp"
             android:layout_marginBottom="8dp" />
 
+        <!-- Only genuinely useful actions -->
         <Button
             android:id="@+id/drawerBrainButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="⚡ Switch brain"
-            android:textAllCaps="false"
-            android:layout_marginStart="12dp"
-            android:layout_marginEnd="12dp"
-            android:layout_marginBottom="6dp" />
-
-        <Button
-            android:id="@+id/drawerTasksButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="📋 Task list"
-            android:textAllCaps="false"
-            android:layout_marginStart="12dp"
-            android:layout_marginEnd="12dp"
-            android:layout_marginBottom="6dp" />
-
-        <Button
-            android:id="@+id/drawerSaveTaskButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="💾 Save as task"
-            android:textAllCaps="false"
-            android:layout_marginStart="12dp"
-            android:layout_marginEnd="12dp"
-            android:layout_marginBottom="6dp" />
-
-        <Button
-            android:id="@+id/drawerMemoryButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="🧠 Memory"
-            android:textAllCaps="false"
-            android:layout_marginStart="12dp"
-            android:layout_marginEnd="12dp"
-            android:layout_marginBottom="6dp" />
-
-        <Button
-            android:id="@+id/drawerTonyMemoryButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="💭 Tony's memory"
             android:textAllCaps="false"
             android:layout_marginStart="12dp"
             android:layout_marginEnd="12dp"
@@ -331,36 +294,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="⚙ Sync codebase"
-            android:textAllCaps="false"
-            android:layout_marginStart="12dp"
-            android:layout_marginEnd="12dp"
-            android:layout_marginBottom="6dp" />
-
-        <Button
-            android:id="@+id/drawerOnDeviceButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="📡 On-device model"
-            android:textAllCaps="false"
-            android:layout_marginStart="12dp"
-            android:layout_marginEnd="12dp"
-            android:layout_marginBottom="6dp" />
-
-        <Button
-            android:id="@+id/drawerFosButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="⚖️ FOS Complaint"
-            android:textAllCaps="false"
-            android:layout_marginStart="12dp"
-            android:layout_marginEnd="12dp"
-            android:layout_marginBottom="6dp" />
-
-        <Button
-            android:id="@+id/drawerVintedButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="🏷️ Create Vinted listing"
             android:textAllCaps="false"
             android:layout_marginStart="12dp"
             android:layout_marginEnd="12dp"

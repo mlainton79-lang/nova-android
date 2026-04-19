@@ -60,17 +60,10 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var sendButton: ImageButton
 
     private lateinit var drawerBrainButton: Button
-    private lateinit var drawerTasksButton: Button
-    private lateinit var drawerSaveTaskButton: Button
-    private lateinit var drawerMemoryButton: Button
-    private lateinit var drawerTonyMemoryButton: Button
     private lateinit var drawerClearChatButton: Button
     private lateinit var drawerCloseButton: Button
     private lateinit var drawerNewChatButton: Button
     private lateinit var drawerSyncCodebaseButton: Button
-    private lateinit var drawerOnDeviceButton: Button
-    private lateinit var drawerFosButton: Button
-    private lateinit var drawerVintedButton: Button
 
     private var tts: TextToSpeech? = null
     private var ttsReady = false
@@ -116,17 +109,10 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         sendButton = findViewById(R.id.sendButton)
 
         drawerBrainButton = findViewById(R.id.drawerBrainButton)
-        drawerTasksButton = findViewById(R.id.drawerTasksButton)
-        drawerSaveTaskButton = findViewById(R.id.drawerSaveTaskButton)
-        drawerMemoryButton = findViewById(R.id.drawerMemoryButton)
-        drawerTonyMemoryButton = findViewById(R.id.drawerTonyMemoryButton)
         drawerClearChatButton = findViewById(R.id.drawerClearChatButton)
         drawerCloseButton = findViewById(R.id.drawerCloseButton)
         drawerNewChatButton = findViewById(R.id.drawerNewChatButton)
         drawerSyncCodebaseButton = findViewById(R.id.drawerSyncCodebaseButton)
-        drawerOnDeviceButton = findViewById(R.id.drawerOnDeviceButton)
-        drawerFosButton = findViewById(R.id.drawerFosButton)
-        drawerVintedButton = findViewById(R.id.drawerVintedButton)
 
         currentBrainMode = BrokerPrefs.getBrainMode(this)
         renderBrainMode()
@@ -171,22 +157,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             syncCodebaseToTony()
         }
 
-        drawerOnDeviceButton.setOnClickListener {
-            drawerLayout.closeDrawer(GravityCompat.START)
-            showOnDeviceModelStatus()
-        }
-
-        drawerFosButton.setOnClickListener {
-            drawerLayout.closeDrawer(GravityCompat.START)
-            generateFosComplaint()
-        }
-
-        drawerVintedButton.setOnClickListener {
-            drawerLayout.closeDrawer(GravityCompat.START)
-            // Open camera to photograph item
-            openCameraWithFileProvider()
-            android.widget.Toast.makeText(this, "Photograph the item to create a listing", android.widget.Toast.LENGTH_LONG).show()
-        }
 
         plusButton.setOnClickListener { showPlusMenu(it) }
         micButton.setOnClickListener { openVoiceInput() }
@@ -964,6 +934,62 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     lastKnownLocation = "${location.latitude},${location.longitude}"
                 }
             } catch (_: Exception) {}
+        }.start()
+    }
+
+    private fun fetchTonyBriefing() {
+        // Only show briefing on fresh app open, not continuation of chat
+        val lastBriefing = getSharedPreferences("nova_prefs", MODE_PRIVATE)
+            .getLong("last_briefing", 0)
+        val now = System.currentTimeMillis()
+        // Only fetch if more than 4 hours since last briefing
+        if (now - lastBriefing < 4 * 60 * 60 * 1000L) return
+
+        Thread {
+            try {
+                val url = java.net.URL("https://web-production-be42b.up.railway.app/api/v1/chat/stream")
+                val briefingMessage = "Give me a brief morning/opening update. What do I have on today? Any alerts or things that need my attention? Keep it short and direct."
+                val body = org.json.JSONObject().apply {
+                    put("provider", "gemini")
+                    put("message", briefingMessage)
+                    put("history", org.json.JSONArray())
+                }.toString()
+
+                val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    connectTimeout = 5000
+                    readTimeout = 15000
+                    doOutput = true
+                    setRequestProperty("Authorization", "Bearer nova-dev-token")
+                    setRequestProperty("Content-Type", "application/json")
+                    setRequestProperty("Accept", "text/event-stream")
+                }
+                conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+
+                if (conn.responseCode == 200) {
+                    val fullText = StringBuilder()
+                    conn.inputStream.bufferedReader().forEachLine { line ->
+                        if (line.startsWith("data: ")) {
+                            try {
+                                val json = org.json.JSONObject(line.substring(6))
+                                val type = json.optString("type")
+                                if (type == "chunk") fullText.append(json.optString("text"))
+                            } catch (_: Exception) {}
+                        }
+                    }
+                    val briefing = fullText.toString().trim()
+                    if (briefing.isNotEmpty()) {
+                        runOnUiThread {
+                            ChatHistoryStore.appendMessage(this, "tony", briefing, provider = "briefing")
+                            renderChatHistory()
+                            getSharedPreferences("nova_prefs", MODE_PRIVATE).edit()
+                                .putLong("last_briefing", System.currentTimeMillis()).apply()
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("TONY_BRIEFING", "Briefing failed: ${e.message}")
+            }
         }.start()
     }
 
@@ -1811,6 +1837,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         statusText.text = if (ok) "Tony is ready."
                             else "${currentBrainMode.displayName} couldn't connect. Try again."
                         renderChatHistory()
+        fetchTonyBriefing()
                         speakTony(finalReply)
                         refreshChatList()
                         triggerSummarisationWithHistory(buildFullHistory())
