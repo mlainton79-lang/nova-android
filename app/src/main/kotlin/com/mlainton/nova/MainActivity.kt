@@ -638,7 +638,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             processThroughLiveBroker(message)
             return
         }
-        statusText.text = "Thinking with ${currentBrainMode.displayName}..."
+        statusText.text = "Tony is thinking..."
         val result = BrainBroker.reply(currentBrainMode, message)
         handleBrokerSuccess(result)
     }
@@ -675,7 +675,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         if (messages.isEmpty()) {
             pendingImageBitmap?.let { addPendingImageBubble(it) }
             val helper = TextView(this).apply {
-                text = "Say hello to Tony."
+                text = "Tony is ready."
                 textSize = 16f
                 setPadding(12, 12, 12, 12)
                 setTextColor(0xFF333355.toInt())
@@ -851,7 +851,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             })
         }
 
-        if (!isUser && message.provider == "council" && message.debugData.isNotEmpty()) {
+        if (!isUser && message.provider == "Council" && message.debugData.isNotEmpty()) {
             val debugPanel = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 visibility = View.GONE
@@ -1217,7 +1217,7 @@ $description")
                                 player.setDataSource(tmp.absolutePath)
                                 player.setOnPreparedListener { mp ->
                                     mp.start()
-                                    statusText.text = "Tony is speaking..."
+                                    statusText.text = "Tony ◆"
                                 }
                                 player.setOnCompletionListener { mp ->
                                     mp.release()
@@ -1233,7 +1233,7 @@ $description")
                                 tonyMediaPlayer = player
                                 player.prepare()
                                 player.start()
-                                statusText.text = "Tony is speaking..."
+                                statusText.text = "Tony ◆"
                             } catch (e: Exception) {
                                 android.util.Log.e("TONY_VOICE", "MediaPlayer failed: ${e.message}")
                                 speakTonyFallback(speakText)
@@ -1255,7 +1255,7 @@ $description")
     private fun speakTonyFallback(text: String) {
         val engine = tts
         if (!ttsReady || engine == null) return
-        statusText.text = "Tony is speaking..."
+        statusText.text = "Tony ◆"
         engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, "TONY_UTTERANCE")
     }
 
@@ -1483,7 +1483,7 @@ $description")
     private fun sendCameraImageToTony(userPrompt: String, imageBase64: String) {
         val rawProvider = backendProviderForCurrentBrain() ?: "gemini"
         val provider = when (rawProvider) {
-            "council" -> "gemini"
+            "Council" -> "gemini"
             else -> rawProvider
         }
         val history = buildBackendHistoryFor(userPrompt)
@@ -1662,7 +1662,7 @@ $description")
             BrainMode.MISTRAL -> "mistral"
             BrainMode.DEEPSEEK -> "deepseek"
             BrainMode.OPENROUTER -> "openrouter"
-            BrainMode.COUNCIL_MOCK -> "council"
+            BrainMode.COUNCIL_MOCK -> "Council"
             BrainMode.LOCAL_TONY -> null // handled by on-device model
             else -> null
         }
@@ -1684,7 +1684,7 @@ $description")
                 ?: "I couldn't process that on-device. Try switching to a cloud brain."
             runOnUiThread {
                 ChatHistoryStore.appendMessage(this, "tony", reply, provider = "on-device")
-                statusText.text = "Tony is ready. (on-device)"
+                statusText.text = "Tony is ready · on-device"
                 renderChatHistory()
                 refreshChatList()
                 speakTony(reply)
@@ -1723,9 +1723,9 @@ $description")
         val calendarEvents = readDeviceCalendar()
         val calendarContext = if (calendarEvents.isNotEmpty()) "Matthew's upcoming calendar events (next 7 days):\n$calendarEvents" else null
         val fullContext = listOfNotNull(locationContext, calendarContext).joinToString("\n").ifEmpty { null }
-        statusText.text = "Thinking with ${currentBrainMode.displayName}..."
+        statusText.text = "Tony is thinking..."
 
-        if (provider == "council") {
+        if (provider == "Council") {
             Thread {
                 val result = NovaApiClient.sendCouncil(
                     message = currentMessage,
