@@ -333,16 +333,64 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private fun showPlusMenu(anchor: View) {
         val popup = PopupMenu(this, anchor)
-        popup.menu.add(0, 1, 0, "Upload file")
-        popup.menu.add(0, 2, 1, "Open camera")
+        popup.menu.add(0, 1, 0, "Camera / photo")
+        popup.menu.add(0, 2, 1, "Upload file")
+        popup.menu.add(0, 3, 2, "Vinted / eBay listing")
+        popup.menu.add(0, 4, 3, "Check pending emails")
+        popup.menu.add(0, 5, 4, "Get Tony's briefing now")
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
-                1 -> { openFilePicker(); true }
-                2 -> { requestCameraPermissionAndOpen(); true }
+                1 -> { requestCameraPermissionAndOpen(); true }
+                2 -> { openFilePicker(); true }
+                3 -> { startVintedFlow(); true }
+                4 -> { checkPendingEmails(); true }
+                5 -> { requestFreshBriefing(); true }
                 else -> false
             }
         }
         popup.show()
+    }
+
+    private fun checkPendingEmails() {
+        statusText.text = "Checking email queue..."
+        Thread {
+            try {
+                val url = java.net.URL("https://web-production-be42b.up.railway.app/api/v1/email-agent/pending")
+                val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 8000
+                    readTimeout = 15000
+                    setRequestProperty("Authorization", "Bearer nova-dev-token")
+                }
+                if (conn.responseCode == 200) {
+                    val response = org.json.JSONObject(conn.inputStream.bufferedReader().readText())
+                    val emails = response.optJSONArray("emails")
+                    val count = emails?.length() ?: 0
+                    val reply = if (count == 0) {
+                        "No emails waiting for your approval right now."
+                    } else {
+                        val first = emails!!.getJSONObject(0)
+                        "You have $count email${if (count > 1) "s" else ""} waiting for approval.\n\nMost recent: **${first.optString("subject")}**\nTo: ${first.optString("to")}\n\nSay 'approve email ${first.optInt("id")}' to send it, or ask me to show you the draft."
+                    }
+                    runOnUiThread {
+                        ChatHistoryStore.appendMessage(this, "tony", reply, provider = "email")
+                        statusText.text = "Tony ready"
+                        renderChatHistory()
+                        refreshChatList()
+                    }
+                } else {
+                    runOnUiThread { statusText.text = "Tony ready" }
+                }
+            } catch (e: Exception) {
+                runOnUiThread { statusText.text = "Tony ready" }
+            }
+        }.start()
+    }
+
+    private fun requestFreshBriefing() {
+        getSharedPreferences("nova_prefs", MODE_PRIVATE).edit()
+            .putLong("last_briefing", 0L).apply()
+        fetchTonyBriefing()
     }
 
     private fun openVoiceInput() {
