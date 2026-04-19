@@ -1457,13 +1457,13 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 pendingImageBitmap = bitmap
                 lastCameraBase64 = base64
                 renderChatHistory()
-                // If Vinted flow active, auto-send immediately without user input
+                // If Vinted flow active, go straight to listing pipeline — skip vision chat
                 if (pendingVintedPlatform != null) {
-                    statusText.text = "Tony ◆ researching item..."
-                    inputText.setText("")
-                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                        sendCurrentMessage()
-                    }, 500)
+                    val platform = pendingVintedPlatform!!
+                    pendingVintedPlatform = null
+                    clearPendingCamera()
+                    statusText.text = "Tony ◆ identifying item and pricing..."
+                    createVintedListing(base64, "image/jpeg", platform)
                 } else {
                     statusText.text = "Image ready — ask Tony about it"
                     inputText.hint = CAMERA_INPUT_HINT
@@ -1592,13 +1592,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         refreshChatList()
                         speakTony(finalReply)
                         triggerSummarisationWithHistory(buildFullHistory())
-                        // If this was a Vinted flow, auto-create listing
-                        val platform = pendingVintedPlatform
-                        if (platform != null && imageBase64 != null) {
-                            pendingVintedPlatform = null
-                            statusText.text = "Tony ◆ identifying item and pricing..."
-                            createVintedListing(imageBase64, "image/jpeg", platform)
-                        }
                     }
                 }
             )
