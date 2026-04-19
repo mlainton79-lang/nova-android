@@ -1431,11 +1431,20 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 pendingCameraBase64 = base64
                 pendingImageBitmap = bitmap
                 lastCameraBase64 = base64
-                statusText.text = "Image ready — ask Tony about it"
-                inputText.hint = CAMERA_INPUT_HINT
-                inputText.requestFocus()
-                showKeyboard()
                 renderChatHistory()
+                // If Vinted flow active, auto-send immediately without user input
+                if (pendingVintedPlatform != null) {
+                    statusText.text = "Tony is identifying item and researching prices..."
+                    inputText.setText("")
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        sendCurrentMessage()
+                    }, 500)
+                } else {
+                    statusText.text = "Image ready — ask Tony about it"
+                    inputText.hint = CAMERA_INPUT_HINT
+                    inputText.requestFocus()
+                    showKeyboard()
+                }
             } else {
                 statusText.text = "No camera preview returned"
                 Toast.makeText(this, "The camera did not return an image.", Toast.LENGTH_SHORT).show()
