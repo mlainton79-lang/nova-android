@@ -77,6 +77,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var photoUri: Uri? = null
     private var morningReportChecked = false
     private var lastKnownLocation: String? = null
+    private var pendingVintedPlatform: String? = null
 
     companion object {
         private const val PICK_FILE_REQUEST = 1001
@@ -159,6 +160,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
 
         plusButton.setOnClickListener { showPlusMenu(it) }
+        plusButton.setOnLongClickListener { startVintedFlow(); true }
         micButton.setOnClickListener { openVoiceInput() }
         sendButton.setOnClickListener { sendCurrentMessage() }
         brainPillText.setOnClickListener { showBrainPicker() }
@@ -937,6 +939,24 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }.start()
     }
 
+    private fun startVintedFlow() {
+        // Autonomous Vinted listing flow
+        // 1. Take photo, 2. Tony identifies and researches, 3. Creates full listing automatically
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Create Vinted/eBay listing")
+            .setMessage("Take a photo of the item. Tony will identify it, research current sold prices, and write the full listing — no input needed from you.")
+            .setPositiveButton("Vinted") { _, _ ->
+                pendingVintedPlatform = "vinted"
+                openCameraWithFileProvider()
+            }
+            .setNegativeButton("eBay") { _, _ ->
+                pendingVintedPlatform = "ebay"
+                openCameraWithFileProvider()
+            }
+            .setNeutralButton("Cancel", null)
+            .show()
+    }
+
     private fun fetchTonyBriefing() {
         // Only show briefing on fresh app open, not continuation of chat
         val lastBriefing = getSharedPreferences("nova_prefs", MODE_PRIVATE)
@@ -1558,6 +1578,13 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         refreshChatList()
                         speakTony(finalReply)
                         triggerSummarisationWithHistory(buildFullHistory())
+                        // If this was a Vinted flow, auto-create listing
+                        val platform = pendingVintedPlatform
+                        if (platform != null && imageBase64 != null) {
+                            pendingVintedPlatform = null
+                            statusText.text = "Tony is researching prices and writing listing..."
+                            createVintedListing(imageBase64, imageMime, platform)
+                        }
                     }
                 }
             )
