@@ -983,11 +983,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     val nextStep = response.optString("next_step", "")
                     val complaintText = response.optString("complaint_text", "")
 
-                    val reply = "FOS complaint prepared. It's ready to submit.
-
-**Next step:** $nextStep
-
-The full complaint has been generated. Ask me to show you any part of it."
+                    val reply = "FOS complaint prepared. It's ready to submit.\n\n**Next step:** $nextStep\n\nThe full complaint has been generated. Ask me to show you any part of it."
 
                     runOnUiThread {
                         ChatHistoryStore.appendMessage(this, "tony", reply, provider = "legal")
@@ -1045,17 +1041,10 @@ The full complaint has been generated. Ask me to show you any part of it."
                     val description = listing?.optString("description", "") ?: ""
 
                     val reply = buildString {
-                        append("**$itemName** identified.
-
-")
-                        append("**Suggested price:** £$price
-
-")
-                        append("**Listing title:** $title
-
-")
-                        append("**Description:**
-$description")
+                        append("**$itemName** identified.\n\n")
+                        append("**Suggested price:** \u00a3$price\n\n")
+                        append("**Listing title:** $title\n\n")
+                        append("**Description:**\n$description")
                     }
 
                     runOnUiThread {
