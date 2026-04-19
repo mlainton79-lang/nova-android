@@ -248,7 +248,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             engine.setPitch(0.85f)
             engine.setSpeechRate(0.92f)
             ttsReady = true
-            statusText.text = "Tony is ready."
+            statusText.text = "Tony ◆ ready"
         } else {
             ttsReady = false
             statusText.text = "Tony voice failed to start."
@@ -765,7 +765,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             .setMessage("Remove this image without sending it?")
             .setPositiveButton("Cancel image") { _, _ ->
                 clearPendingCamera()
-                statusText.text = "Tony is ready."
+                statusText.text = "Tony ◆ ready"
                 renderChatHistory()
             }
             .setNegativeButton("Keep", null)
@@ -798,8 +798,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             row.addView(TextView(this).apply {
                 text = message.provider
                 textSize = 11f
-                setTextColor(0xFF004455.toInt())
-                setPadding(6, 2, 6, 0)
+                setTextColor(0xFF005566.toInt())
+                setPadding(4, 2, 4, 0)
+                letterSpacing = 0.08f
             })
         }
 
@@ -1013,7 +1014,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
                     runOnUiThread {
                         ChatHistoryStore.appendMessage(this, "tony", reply, provider = "legal")
-                        statusText.text = "FOS complaint ready"
+                        statusText.text = "FOS complaint ready ◆"
                         renderChatHistory()
                         refreshChatList()
                     }
@@ -1037,7 +1038,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun createVintedListing(imageBase64: String, imageMime: String, platform: String) {
-        statusText.text = "Tony is identifying item and researching prices..."
+        statusText.text = "Tony ◆ researching item..."
         Thread {
             try {
                 val url = java.net.URL("https://web-production-be42b.up.railway.app/api/v1/vinted/create-listing")
@@ -1075,7 +1076,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
                     runOnUiThread {
                         ChatHistoryStore.appendMessage(this, "tony", reply, provider = "vinted")
-                        statusText.text = "Listing created — copy and paste to $platform"
+                        statusText.text = "Listing ready ◆"
                         renderChatHistory()
                         refreshChatList()
                     }
@@ -1434,7 +1435,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 renderChatHistory()
                 // If Vinted flow active, auto-send immediately without user input
                 if (pendingVintedPlatform != null) {
-                    statusText.text = "Tony is identifying item and researching prices..."
+                    statusText.text = "Tony ◆ researching item..."
                     inputText.setText("")
                     android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                         sendCurrentMessage()
@@ -1562,7 +1563,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     runOnUiThread {
                         chatContainer.removeView(streamingBubble)
                         ChatHistoryStore.appendMessage(this, "tony", finalReply, provider = provider)
-                        statusText.text = if (ok) "Tony is ready." else "Couldn't analyse image. Try again."
+                        statusText.text = if (ok) "Tony ◆ ready" else "Vision failed — try again"
                         renderChatHistory()
                         refreshChatList()
                         speakTony(finalReply)
@@ -1571,7 +1572,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         val platform = pendingVintedPlatform
                         if (platform != null && imageBase64 != null) {
                             pendingVintedPlatform = null
-                            statusText.text = "Tony is researching prices and writing listing..."
+                            statusText.text = "Tony ◆ identifying item and pricing..."
                             createVintedListing(imageBase64, "image/jpeg", platform)
                         }
                     }
@@ -1769,7 +1770,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 )
                 runOnUiThread {
                     val replyText = if (result.reply.isNotBlank()) result.reply
-                        else "Tony is having trouble connecting right now. Please try again or switch provider."
+                        else "Tony couldn't reach the server. Check connection or switch brain."
 
                     val debugJson = result.councilDebug?.let { d ->
                         org.json.JSONObject().apply {
@@ -1841,7 +1842,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 },
                 onDone = { ok, completeText, error ->
                     val finalReply = completeText.ifBlank {
-                        "Tony is having trouble connecting right now. Please try again or switch provider."
+                        "Tony couldn't reach the server. Check connection or switch brain."
                     }
                     runOnUiThread {
                         chatContainer.removeView(streamingBubble)

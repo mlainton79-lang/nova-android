@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector android:width="48dp" android:height="16dp" android:viewportWidth="48" android:viewportHeight="16">
+            <path android:name="dot1" android:fillColor="#00D4FF" android:pathData="M6,8 A4,4 0 1,0 6,8.001Z"/>
+            <path android:name="dot2" android:fillColor="#00D4FF" android:pathData="M24,8 A4,4 0 1,0 24,8.001Z"/>
+            <path android:name="dot3" android:fillColor="#00D4FF" android:pathData="M42,8 A4,4 0 1,0 42,8.001Z"/>
+        </vector>
+    </aapt:attr>
+</animated-vector>
