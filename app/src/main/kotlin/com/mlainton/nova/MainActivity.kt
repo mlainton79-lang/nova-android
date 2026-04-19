@@ -69,6 +69,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var drawerNewChatButton: Button
     private lateinit var drawerSyncCodebaseButton: Button
     private lateinit var drawerOnDeviceButton: Button
+    private lateinit var drawerFosButton: Button
+    private lateinit var drawerVintedButton: Button
 
     private var tts: TextToSpeech? = null
     private var ttsReady = false
@@ -123,6 +125,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         drawerNewChatButton = findViewById(R.id.drawerNewChatButton)
         drawerSyncCodebaseButton = findViewById(R.id.drawerSyncCodebaseButton)
         drawerOnDeviceButton = findViewById(R.id.drawerOnDeviceButton)
+        drawerFosButton = findViewById(R.id.drawerFosButton)
+        drawerVintedButton = findViewById(R.id.drawerVintedButton)
 
         currentBrainMode = BrokerPrefs.getBrainMode(this)
         renderBrainMode()
@@ -170,6 +174,18 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         drawerOnDeviceButton.setOnClickListener {
             drawerLayout.closeDrawer(GravityCompat.START)
             showOnDeviceModelStatus()
+        }
+
+        drawerFosButton.setOnClickListener {
+            drawerLayout.closeDrawer(GravityCompat.START)
+            generateFosComplaint()
+        }
+
+        drawerVintedButton.setOnClickListener {
+            drawerLayout.closeDrawer(GravityCompat.START)
+            // Open camera to photograph item
+            openCameraWithFileProvider()
+            android.widget.Toast.makeText(this, "Photograph the item to create a listing", android.widget.Toast.LENGTH_LONG).show()
         }
 
         plusButton.setOnClickListener { showPlusMenu(it) }
@@ -948,6 +964,112 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     lastKnownLocation = "${location.latitude},${location.longitude}"
                 }
             } catch (_: Exception) {}
+        }.start()
+    }
+
+    private fun generateFosComplaint() {
+        statusText.text = "Tony is preparing your FOS complaint..."
+        Thread {
+            try {
+                val url = java.net.URL("https://web-production-be42b.up.railway.app/api/v1/cases/fos-complaint")
+                val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 10000
+                    readTimeout = 60000
+                    setRequestProperty("Authorization", "Bearer nova-dev-token")
+                }
+                if (conn.responseCode == 200) {
+                    val response = org.json.JSONObject(conn.inputStream.bufferedReader().readText())
+                    val nextStep = response.optString("next_step", "")
+                    val complaintText = response.optString("complaint_text", "")
+
+                    val reply = "FOS complaint prepared. It's ready to submit.
+
+**Next step:** $nextStep
+
+The full complaint has been generated. Ask me to show you any part of it."
+
+                    runOnUiThread {
+                        ChatHistoryStore.appendMessage(this, "tony", reply, provider = "legal")
+                        statusText.text = "FOS complaint ready"
+                        renderChatHistory()
+                        refreshChatList()
+                    }
+                } else {
+                    runOnUiThread { statusText.text = "FOS complaint generation failed" }
+                }
+            } catch (e: Exception) {
+                runOnUiThread { statusText.text = "Error: ${e.message}" }
+            }
+        }.start()
+    }
+
+    private fun offerVintedListing(imageBase64: String, imageMime: String) {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Create a listing?")
+            .setMessage("Tony can identify this item, research sold prices, and create a Vinted or eBay listing for you.")
+            .setPositiveButton("Vinted") { _, _ -> createVintedListing(imageBase64, imageMime, "vinted") }
+            .setNegativeButton("eBay") { _, _ -> createVintedListing(imageBase64, imageMime, "ebay") }
+            .setNeutralButton("Just chat") { _, _ -> }
+            .show()
+    }
+
+    private fun createVintedListing(imageBase64: String, imageMime: String, platform: String) {
+        statusText.text = "Tony is identifying item and researching prices..."
+        Thread {
+            try {
+                val url = java.net.URL("https://web-production-be42b.up.railway.app/api/v1/vinted/create-listing")
+                val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    connectTimeout = 30000
+                    readTimeout = 60000
+                    doOutput = true
+                    setRequestProperty("Authorization", "Bearer nova-dev-token")
+                    setRequestProperty("Content-Type", "application/json")
+                }
+                val body = org.json.JSONObject().apply {
+                    put("image_base64", imageBase64)
+                    put("image_mime", imageMime)
+                    put("platform", platform)
+                    put("condition", "good")
+                }.toString()
+                conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+
+                if (conn.responseCode == 200) {
+                    val response = org.json.JSONObject(conn.inputStream.bufferedReader().readText())
+                    val listing = response.optJSONObject("listing")
+                    val item = response.optJSONObject("item")
+                    val itemName = item?.optString("item_name", "Item") ?: "Item"
+                    val price = listing?.optString("suggested_price", "?") ?: "?"
+                    val title = listing?.optString("title", "") ?: ""
+                    val description = listing?.optString("description", "") ?: ""
+
+                    val reply = buildString {
+                        append("**$itemName** identified.
+
+")
+                        append("**Suggested price:** £$price
+
+")
+                        append("**Listing title:** $title
+
+")
+                        append("**Description:**
+$description")
+                    }
+
+                    runOnUiThread {
+                        ChatHistoryStore.appendMessage(this, "tony", reply, provider = "vinted")
+                        statusText.text = "Listing created — copy and paste to $platform"
+                        renderChatHistory()
+                        refreshChatList()
+                    }
+                } else {
+                    runOnUiThread { statusText.text = "Listing creation failed" }
+                }
+            } catch (e: Exception) {
+                runOnUiThread { statusText.text = "Error: ${e.message}" }
+            }
         }.start()
     }
 
