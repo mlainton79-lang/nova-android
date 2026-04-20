@@ -1861,8 +1861,13 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     setMargins(0, 0, 0, 6)
                 }
             }
-            chatContainer.addView(thinkingBubble)
-            chatScrollView.post { chatScrollView.fullScroll(View.FOCUS_DOWN) }
+            runOnUiThread {
+                chatContainer.addView(thinkingBubble)
+                chatContainer.requestLayout()
+                chatScrollView.post {
+                    chatScrollView.fullScroll(View.FOCUS_DOWN)
+                }
+            }
 
             Thread {
                 val result = NovaApiClient.sendCouncil(
