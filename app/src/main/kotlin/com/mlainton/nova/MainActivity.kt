@@ -1470,7 +1470,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 val extractedText = tryReadSupportedTextFile(uri, fileName, mimeType)
                 val extractedPdfBase64 = tryReadSupportedPdfBase64(uri, fileName, mimeType)
                 val extractedImageBase64 = tryReadSupportedImageBase64(uri, fileName, mimeType)
-                val preferredBase64 = extractedPdfBase64 ?: extractedImageBase64
+                val extractedZipBase64 = tryReadSupportedZipBase64(uri, fileName, mimeType)
+                val preferredBase64 = extractedPdfBase64 ?: extractedImageBase64 ?: extractedZipBase64
                 val extractedDocxText = tryReadSupportedDocxText(uri, fileName, mimeType)
                 val preferredText = extractedText ?: extractedDocxText
 
@@ -1729,6 +1730,20 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 }
             }
             foundText?.ifBlank { null }
+        } catch (_: Exception) { null }
+    }
+
+    private fun tryReadSupportedZipBase64(uri: Uri, fileName: String, mimeType: String): String? {
+        val isZip = mimeType.contains("zip", ignoreCase = true) ||
+            mimeType == "application/x-zip-compressed" ||
+            fileName.lowercase().endsWith(".zip")
+        if (!isZip) return null
+        return try {
+            contentResolver.openInputStream(uri)?.use { input ->
+                val bytes = input.readBytes()
+                if (bytes.size > 50 * 1024 * 1024) null  // 50MB limit
+                else android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+            }
         } catch (_: Exception) { null }
     }
 
