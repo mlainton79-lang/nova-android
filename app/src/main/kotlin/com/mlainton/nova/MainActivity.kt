@@ -1844,6 +1844,26 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         statusText.text = "Tony ◆ thinking..."
 
         if (provider == "Council") {
+            // Show a thinking bubble so the screen isn't blank for 20-40s
+            val thinkingBubble = TextView(this).apply {
+                text = "Tony is deliberating across all brains..."
+                textSize = 14f
+                setTextColor(0xFF888888.toInt())
+                setTypeface(null, android.graphics.Typeface.ITALIC)
+                maxWidth = (resources.displayMetrics.widthPixels * 0.76f).toInt()
+                setPadding(18, 12, 18, 12)
+                background = ContextCompat.getDrawable(this@MainActivity, R.drawable.chat_bubble_tony)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    gravity = Gravity.START
+                    setMargins(0, 0, 0, 6)
+                }
+            }
+            chatContainer.addView(thinkingBubble)
+            chatScrollView.post { chatScrollView.fullScroll(View.FOCUS_DOWN) }
+
             Thread {
                 val result = NovaApiClient.sendCouncil(
                     message = currentMessage,
@@ -1856,6 +1876,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     documentMime = doc?.mimeType
                 )
                 runOnUiThread {
+                    try { chatContainer.removeView(thinkingBubble) } catch (_: Exception) {}
                     val replyText = if (result.reply.isNotBlank()) result.reply
                         else "Tony couldn't reach the server. Check connection or switch brain."
 
