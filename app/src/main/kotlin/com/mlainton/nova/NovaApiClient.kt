@@ -112,7 +112,7 @@ object NovaApiClient {
         documentMime: String? = null,
         imageBase64: String? = null,
         onChunk: (String) -> Unit,
-        onDone: (ok: Boolean, fullText: String, error: String?) -> Unit
+        onDone: (ok: Boolean, fullText: String, error: String?, resolvedProvider: String?) -> Unit
     ) {
         try {
             val url = URL("$BASE_URL/api/v1/chat/stream")
@@ -153,11 +153,12 @@ object NovaApiClient {
             val statusCode = connection.responseCode
             if (statusCode !in 200..299) {
                 val err = readAll(connection.errorStream)
-                onDone(false, "", "HTTP $statusCode: $err")
+                onDone(false, "", "HTTP $statusCode: $err", null)
                 return
             }
 
             val fullText = StringBuilder()
+            var resolvedProvider: String? = null
             val reader = BufferedReader(InputStreamReader(connection.inputStream))
             var line: String?
             while (reader.readLine().also { line = it } != null) {
@@ -167,7 +168,14 @@ object NovaApiClient {
                 if (data.isBlank()) continue
                 try {
                     val json = JSONObject(data)
-                    when (json.optString("type")) {
+                    val type = json.optString("type")
+                    val providerHint = if (type == "provider") {
+                        json.optString("name").ifBlank { json.optString("provider") }.ifBlank { json.optString("text") }
+                    } else {
+                        json.optString("provider")
+                    }
+                    if (providerHint.isNotBlank()) resolvedProvider = providerHint
+                    when (type) {
                         "chunk" -> {
                             val chunk = json.optString("text", "")
                             if (chunk.isNotEmpty()) {
@@ -177,19 +185,19 @@ object NovaApiClient {
                         }
                         "error" -> {
                             val errText = json.optString("text", "Unknown error")
-                            onDone(false, fullText.toString(), errText)
+                            onDone(false, fullText.toString(), errText, resolvedProvider)
                             return
                         }
                         "done" -> {
-                            onDone(true, fullText.toString(), null)
+                            onDone(true, fullText.toString(), null, resolvedProvider)
                             return
                         }
                     }
                 } catch (_: Exception) { }
             }
-            onDone(true, fullText.toString(), null)
+            onDone(true, fullText.toString(), null, resolvedProvider)
         } catch (e: Exception) {
-            onDone(false, "", e.message)
+            onDone(false, "", e.message, null)
         }
     }
 

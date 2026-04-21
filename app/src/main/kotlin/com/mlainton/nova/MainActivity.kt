@@ -1653,7 +1653,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         chatScrollView.post { chatScrollView.fullScroll(View.FOCUS_DOWN) }
                     }
                 },
-                onDone = { ok, completeText, error ->
+                onDone = { ok, completeText, error, _ ->
                     val finalReply = completeText.ifBlank {
                         "Tony couldn't analyse the image right now. Please try again."
                     }
@@ -1973,15 +1973,20 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         chatScrollView.post { chatScrollView.fullScroll(View.FOCUS_DOWN) }
                     }
                 },
-                onDone = { ok, completeText, error ->
+                onDone = { ok, completeText, error, resolvedProvider ->
                     val finalReply = completeText.ifBlank {
                         "Tony couldn't reach the server. Check connection or switch brain."
                     }
                     runOnUiThread {
                         chatContainer.removeView(streamingBubble)
+                        val providerLabel = if (provider == "auto" && !resolvedProvider.isNullOrBlank()) {
+                            "auto → $resolvedProvider"
+                        } else {
+                            provider
+                        }
                         ChatHistoryStore.appendMessage(
                             this, "tony", finalReply,
-                            provider = provider,
+                            provider = providerLabel,
                             debugData = ""
                         )
                         statusText.text = if (ok) "Tony is ready."
