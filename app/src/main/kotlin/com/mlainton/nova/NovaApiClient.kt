@@ -9,7 +9,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 object NovaApiClient {
-    private val BASE_URL = "https://web-production-be42b.up.railway.app"
+    const val BASE_URL = "https://web-production-be42b.up.railway.app"
     private val DEV_TOKEN = "nova-dev-token"
 
     data class HistoryItem(val role: String, val content: String)

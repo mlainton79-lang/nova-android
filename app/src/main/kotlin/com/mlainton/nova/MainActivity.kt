@@ -357,7 +357,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         statusText.text = "Tony ◆ checking builds..."
         Thread {
             try {
-                val url = java.net.URL("https://web-production-be42b.up.railway.app/api/v1/chat/stream")
+                val url = java.net.URL("${NovaApiClient.BASE_URL}/api/v1/chat/stream")
                 val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
                     requestMethod = "POST"
                     connectTimeout = 30000
@@ -409,7 +409,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         statusText.text = "Checking email queue..."
         Thread {
             try {
-                val url = java.net.URL("https://web-production-be42b.up.railway.app/api/v1/email-agent/pending")
+                val url = java.net.URL("${NovaApiClient.BASE_URL}/api/v1/email-agent/pending")
                 val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
                     requestMethod = "GET"
                     connectTimeout = 8000
@@ -469,7 +469,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         // Call backend for intelligent AI-powered correction
         // Falls back to original if backend unavailable
         return try {
-            val url = java.net.URL("https://web-production-be42b.up.railway.app/api/v1/voice/correct")
+            val url = java.net.URL("${NovaApiClient.BASE_URL}/api/v1/voice/correct")
             val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
                 requestMethod = "POST"
                 connectTimeout = 3000
@@ -1073,7 +1073,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         Thread {
             try {
                 // Use fast briefing endpoint - pulls from live state, no LLM needed
-                val url = java.net.URL("https://web-production-be42b.up.railway.app/api/v1/proactive/briefing")
+                val url = java.net.URL("${NovaApiClient.BASE_URL}/api/v1/proactive/briefing")
                 val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
                     requestMethod = "GET"
                     connectTimeout = 6000
@@ -1102,7 +1102,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         statusText.text = "Tony is preparing your FOS complaint..."
         Thread {
             try {
-                val url = java.net.URL("https://web-production-be42b.up.railway.app/api/v1/cases/fos-complaint")
+                val url = java.net.URL("${NovaApiClient.BASE_URL}/api/v1/cases/fos-complaint")
                 val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
                     requestMethod = "GET"
                     connectTimeout = 10000
@@ -1145,7 +1145,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         statusText.text = "Tony ◆ researching item..."
         Thread {
             try {
-                val url = java.net.URL("https://web-production-be42b.up.railway.app/api/v1/vinted/create-listing")
+                val url = java.net.URL("${NovaApiClient.BASE_URL}/api/v1/vinted/create-listing")
                 val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
                     requestMethod = "POST"
                     connectTimeout = 30000
@@ -1304,7 +1304,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val speakText = text.take(500).trimEnd { !it.isLetterOrDigit() && it != '.' && it != '!' && it != '?' }
         Thread {
             try {
-                val url = java.net.URL("https://web-production-be42b.up.railway.app/api/v1/voice/speak")
+                val url = java.net.URL("${NovaApiClient.BASE_URL}/api/v1/voice/speak")
                 val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
                     requestMethod = "POST"
                     connectTimeout = 10000

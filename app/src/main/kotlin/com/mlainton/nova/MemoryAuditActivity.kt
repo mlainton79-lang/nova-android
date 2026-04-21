@@ -11,7 +11,6 @@ import kotlin.concurrent.thread
 
 class MemoryAuditActivity : AppCompatActivity() {
 
-    private val BASE_URL = "https://web-production-be42b.up.railway.app"
     private val TOKEN = "nova-dev-token"
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -51,7 +50,7 @@ class MemoryAuditActivity : AppCompatActivity() {
     private fun loadMemories(status: TextView, container: LinearLayout) {
         thread {
             try {
-                val url = URL("$BASE_URL/api/v1/memory")
+                val url = URL("${NovaApiClient.BASE_URL}/api/v1/memory")
                 val conn = url.openConnection() as HttpURLConnection
                 conn.setRequestProperty("Authorization", "Bearer $TOKEN")
                 val response = conn.inputStream.bufferedReader().readText()
@@ -127,7 +126,7 @@ class MemoryAuditActivity : AppCompatActivity() {
     private fun deleteMemory(id: String, card: LinearLayout, container: LinearLayout) {
         thread {
             try {
-                val url = URL("$BASE_URL/api/v1/memory/$id")
+                val url = URL("${NovaApiClient.BASE_URL}/api/v1/memory/$id")
                 val conn = url.openConnection() as HttpURLConnection
                 conn.requestMethod = "DELETE"
                 conn.setRequestProperty("Authorization", "Bearer $TOKEN")
