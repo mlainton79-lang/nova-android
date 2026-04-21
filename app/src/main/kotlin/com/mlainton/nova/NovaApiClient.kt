@@ -429,6 +429,19 @@ object NovaApiClient {
         } catch (_: Exception) { false }
     }
 
+    fun forgetFactsMatching(query: String): Int {
+        val needle = query.trim().lowercase(java.util.Locale.ROOT)
+        if (needle.isEmpty()) return 0
+        val facts = getMemories() ?: return 0
+        var removed = 0
+        for (fact in facts) {
+            if (fact.text.lowercase(java.util.Locale.ROOT).contains(needle)) {
+                if (deleteMemory(fact.id)) removed++
+            }
+        }
+        return removed
+    }
+
     fun getMorningReport(): String? {
         return try {
             val url = URL("$BASE_URL/api/v1/think/morning")

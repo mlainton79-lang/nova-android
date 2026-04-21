@@ -631,11 +631,20 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 }
             }
             forgetQuery != null -> {
-                val removed = MemoryStore.forgetMatching(this, forgetQuery)
+                val localRemoved = MemoryStore.forgetMatching(this, forgetQuery)
                 ChatHistoryStore.appendMessage(this, "user", message)
-                ChatHistoryStore.appendMessage(this, "tony", "Removed $removed matching memory item(s).")
-                statusText.text = "Memory updated"
+                statusText.text = "Checking cloud memory…"
                 renderChatHistory()
+                Thread {
+                    val cloudRemoved = NovaApiClient.forgetFactsMatching(forgetQuery)
+                    val total = localRemoved + cloudRemoved
+                    runOnUiThread {
+                        ChatHistoryStore.appendMessage(this, "tony",
+                            "Removed $total matching memory item(s).")
+                        statusText.text = "Memory updated"
+                        renderChatHistory()
+                    }
+                }.start()
                 true
             }
             else -> false
