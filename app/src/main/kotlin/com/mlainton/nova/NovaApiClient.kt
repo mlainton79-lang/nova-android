@@ -425,7 +425,15 @@ object NovaApiClient {
             }
             val json = JSONObject().apply { put("fact_id", factId) }
             connection.outputStream.use { it.write(json.toString().toByteArray()); it.flush() }
-            connection.responseCode in 200..299
+            val statusCode = connection.responseCode
+            // The backend returns HTTP 200 even when the delete fails (it wraps
+            // DB errors in {"ok": false, ...}). Parse the body and trust the
+            // ok field — not just the status code.
+            val responseText = readAll(
+                if (statusCode in 200..299) connection.inputStream else connection.errorStream
+            )
+            val body = JSONObject(responseText.ifBlank { "{}" })
+            statusCode in 200..299 && body.optBoolean("ok", false)
         } catch (_: Exception) { false }
     }
 
