@@ -602,6 +602,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private fun handleMemoryCommand(message: String): Boolean {
         val lower = message.lowercase(Locale.ROOT)
+        val forgetQuery = extractForgetQuery(message, lower)
         return when {
             lower.startsWith("remember that ") -> {
                 val fact = message.substringAfter("remember that ").trim()
@@ -629,19 +630,35 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     true
                 }
             }
-            lower.startsWith("forget ") -> {
-                val query = message.substringAfter("forget ").trim()
-                if (query.isEmpty()) false else {
-                    val removed = MemoryStore.forgetMatching(this, query)
-                    ChatHistoryStore.appendMessage(this, "user", message)
-                    ChatHistoryStore.appendMessage(this, "tony", "Removed $removed matching memory item(s).")
-                    statusText.text = "Memory updated"
-                    renderChatHistory()
-                    true
-                }
+            forgetQuery != null -> {
+                val removed = MemoryStore.forgetMatching(this, forgetQuery)
+                ChatHistoryStore.appendMessage(this, "user", message)
+                ChatHistoryStore.appendMessage(this, "tony", "Removed $removed matching memory item(s).")
+                statusText.text = "Memory updated"
+                renderChatHistory()
+                true
             }
             else -> false
         }
+    }
+
+    private fun extractForgetQuery(message: String, lower: String): String? {
+        val start: String
+        val end: String
+        when {
+            lower.startsWith("forget about ") -> { start = "forget about "; end = "" }
+            lower.startsWith("permanently forget ") -> { start = "permanently forget "; end = "" }
+            lower.startsWith("delete memory of ") -> { start = "delete memory of "; end = "" }
+            lower.startsWith("remove memory of ") -> { start = "remove memory of "; end = "" }
+            lower.startsWith("forget ") && lower.endsWith(" permanently") ->
+                { start = "forget "; end = " permanently" }
+            lower.startsWith("remove ") && lower.endsWith(" from your memory") ->
+                { start = "remove "; end = " from your memory" }
+            lower.startsWith("remove ") && lower.endsWith(" from memory") ->
+                { start = "remove "; end = " from memory" }
+            else -> return null
+        }
+        return message.substring(start.length, message.length - end.length).trim().takeIf { it.isNotEmpty() }
     }
 
     private fun saveCurrentTextAsTask() {
