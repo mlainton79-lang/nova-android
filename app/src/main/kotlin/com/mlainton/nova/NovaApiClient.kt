@@ -351,7 +351,7 @@ object NovaApiClient {
 
     fun getMemories(): List<MemoryEntry>? {
         return try {
-            val url = URL("$BASE_URL/api/v1/memory")
+            val url = URL("$BASE_URL/api/v1/facts?limit=100")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 connectTimeout = 300000
@@ -362,15 +362,19 @@ object NovaApiClient {
             }
             val responseText = readAll(connection.inputStream)
             val json = JSONObject(responseText)
-            val array = json.optJSONArray("memories") ?: return emptyList()
+            val array = json.optJSONArray("facts") ?: return emptyList()
             val result = mutableListOf<MemoryEntry>()
             for (i in 0 until array.length()) {
-                val obj = array.optJSONObject(i) ?: continue
+                val fact = array.optJSONObject(i) ?: continue
+                val subject = fact.optString("subject", "")
+                val predicate = fact.optString("predicate", "").replace('_', ' ')
+                val value = fact.optString("object", "")
+                val text = listOf(subject, predicate, value).filter { it.isNotBlank() }.joinToString(" ")
                 result.add(MemoryEntry(
-                    id = obj.optString("id"),
-                    category = obj.optString("category"),
-                    text = obj.optString("text"),
-                    createdAt = obj.optString("created_at")
+                    id = fact.optInt("id", 0).toString(),
+                    category = "facts",
+                    text = text,
+                    createdAt = fact.optString("last_confirmed_at", "")
                 ))
             }
             result
@@ -378,8 +382,15 @@ object NovaApiClient {
     }
 
     fun addMemory(category: String, text: String): Boolean {
+        // /api/v1/memory doesn't exist on production. /api/v1/facts/extract
+        // is the closest available endpoint: it runs LLM extraction over a
+        // synthesized conversation turn and saves any facts it infers. The
+        // server may save zero or multiple facts from one call, and the
+        // stored form is structured (subject/predicate/object) rather than
+        // the raw text. Local MemoryStore remains the source of truth for
+        // the verbatim string.
         return try {
-            val url = URL("$BASE_URL/api/v1/memory")
+            val url = URL("$BASE_URL/api/v1/facts/extract")
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 connectTimeout = 300000
@@ -390,8 +401,9 @@ object NovaApiClient {
                 setRequestProperty("Content-Type", "application/json")
             }
             val json = JSONObject().apply {
-                put("category", category)
-                put("text", text)
+                put("user_message", "Remember: $text")
+                put("assistant_reply", "I will remember that.")
+                put("save", true)
             }
             connection.outputStream.use { it.write(json.toString().toByteArray()); it.flush() }
             connection.responseCode in 200..299
@@ -399,15 +411,20 @@ object NovaApiClient {
     }
 
     fun deleteMemory(id: String): Boolean {
+        val factId = id.toIntOrNull() ?: return false
         return try {
-            val url = URL("$BASE_URL/api/v1/memory/$id")
+            val url = URL("$BASE_URL/api/v1/facts/delete")
             val connection = (url.openConnection() as HttpURLConnection).apply {
-                requestMethod = "DELETE"
+                requestMethod = "POST"
                 connectTimeout = 300000
                 readTimeout = 300000
+                doOutput = true
                 instanceFollowRedirects = true
                 setRequestProperty("Authorization", "Bearer $DEV_TOKEN")
+                setRequestProperty("Content-Type", "application/json")
             }
+            val json = JSONObject().apply { put("fact_id", factId) }
+            connection.outputStream.use { it.write(json.toString().toByteArray()); it.flush() }
             connection.responseCode in 200..299
         } catch (_: Exception) { false }
     }
