@@ -1,17 +1,13 @@
 package com.mlainton.nova
 
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
-import org.json.JSONArray
-import java.net.HttpURLConnection
-import java.net.URL
 import kotlin.concurrent.thread
 
 class MemoryAuditActivity : AppCompatActivity() {
-
-    private val TOKEN = "nova-dev-token"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,34 +45,22 @@ class MemoryAuditActivity : AppCompatActivity() {
 
     private fun loadMemories(status: TextView, container: LinearLayout) {
         thread {
-            try {
-                val url = URL("${NovaApiClient.BASE_URL}/api/v1/memory")
-                val conn = url.openConnection() as HttpURLConnection
-                conn.setRequestProperty("Authorization", "Bearer $TOKEN")
-                val response = conn.inputStream.bufferedReader().readText()
-                val json = org.json.JSONObject(response)
-                val memories = json.getJSONArray("memories")
-
-                runOnUiThread {
-                    status.visibility = View.GONE
-                    container.removeAllViews()
-                    if (memories.length() == 0) {
-                        val empty = TextView(this).apply {
-                            text = "No memories stored yet."
-                            setTextColor(0xFFaaaaaa.toInt())
-                        }
-                        container.addView(empty)
-                    } else {
-                        for (i in 0 until memories.length()) {
-                            val mem = memories.getJSONObject(i)
-                            addMemoryCard(container, mem.getString("id"),
-                                mem.getString("category"), mem.getString("text"))
-                        }
+            val memories = NovaApiClient.getMemories()
+            runOnUiThread {
+                status.visibility = View.GONE
+                container.removeAllViews()
+                when {
+                    memories == null -> status.apply {
+                        text = "Error loading memories."
+                        visibility = View.VISIBLE
                     }
-                }
-            } catch (e: Exception) {
-                runOnUiThread {
-                    status.text = "Error loading memories: ${e.message}"
+                    memories.isEmpty() -> container.addView(TextView(this).apply {
+                        text = "No memories stored yet."
+                        setTextColor(0xFFaaaaaa.toInt())
+                    })
+                    else -> memories.forEach {
+                        addMemoryCard(container, it.id, it.category, it.text)
+                    }
                 }
             }
         }
@@ -125,16 +109,13 @@ class MemoryAuditActivity : AppCompatActivity() {
 
     private fun deleteMemory(id: String, card: LinearLayout, container: LinearLayout) {
         thread {
-            try {
-                val url = URL("${NovaApiClient.BASE_URL}/api/v1/memory/$id")
-                val conn = url.openConnection() as HttpURLConnection
-                conn.requestMethod = "DELETE"
-                conn.setRequestProperty("Authorization", "Bearer $TOKEN")
-                conn.responseCode
-                runOnUiThread { container.removeView(card) }
-            } catch (e: Exception) {
-                runOnUiThread {
-                    Toast.makeText(this, "Delete failed: ${e.message}", Toast.LENGTH_SHORT).show()
+            val ok = NovaApiClient.deleteMemory(id)
+            runOnUiThread {
+                if (ok) {
+                    container.removeView(card)
+                } else {
+                    Log.w("MemoryAudit", "delete failed for id=$id")
+                    Toast.makeText(this, "Delete failed", Toast.LENGTH_SHORT).show()
                 }
             }
         }
