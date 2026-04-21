@@ -1605,6 +1605,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val rawProvider = backendProviderForCurrentBrain() ?: "gemini"
         val provider = when (rawProvider) {
             "Council" -> "gemini"
+            "auto" -> "gemini"
             else -> rawProvider
         }
         val history = buildBackendHistoryFor(userPrompt)
@@ -1790,6 +1791,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private fun backendProviderForCurrentBrain(): String? {
         return when (currentBrainMode) {
+            BrainMode.AUTO -> "auto"
             BrainMode.OPENAI_LIVE -> "openai"
             BrainMode.GEMINI_MOCK -> "gemini"
             BrainMode.CLAUDE_MOCK -> "claude"

@@ -1,6 +1,7 @@
 package com.mlainton.nova
 
 enum class BrainMode(val displayName: String) {
+    AUTO("Auto (smart routing)"),
     LOCAL_TONY("Local Tony"),
     GEMINI_MOCK("Gemini"),
     CLAUDE_MOCK("Claude"),
