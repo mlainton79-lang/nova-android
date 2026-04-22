@@ -363,7 +363,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     connectTimeout = 30000
                     readTimeout = 30000
                     doOutput = true
-                    setRequestProperty("Authorization", "Bearer nova-dev-token")
+                    setRequestProperty("Authorization", "Bearer ${NovaApiClient.DEV_TOKEN}")
                     setRequestProperty("Content-Type", "application/json")
                     setRequestProperty("Accept", "text/event-stream")
                 }
@@ -414,7 +414,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     requestMethod = "GET"
                     connectTimeout = 8000
                     readTimeout = 15000
-                    setRequestProperty("Authorization", "Bearer nova-dev-token")
+                    setRequestProperty("Authorization", "Bearer ${NovaApiClient.DEV_TOKEN}")
                 }
                 if (conn.responseCode == 200) {
                     val response = org.json.JSONObject(conn.inputStream.bufferedReader().readText())
@@ -475,7 +475,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 connectTimeout = 3000
                 readTimeout = 4000
                 doOutput = true
-                setRequestProperty("Authorization", "Bearer nova-dev-token")
+                setRequestProperty("Authorization", "Bearer ${NovaApiClient.DEV_TOKEN}")
                 setRequestProperty("Content-Type", "application/json")
             }
             val body = org.json.JSONObject().apply { put("text", text) }.toString()
@@ -1078,7 +1078,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     requestMethod = "GET"
                     connectTimeout = 6000
                     readTimeout = 10000
-                    setRequestProperty("Authorization", "Bearer nova-dev-token")
+                    setRequestProperty("Authorization", "Bearer ${NovaApiClient.DEV_TOKEN}")
                 }
                 if (conn.responseCode == 200) {
                     val response = org.json.JSONObject(conn.inputStream.bufferedReader().readText())
@@ -1107,7 +1107,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     requestMethod = "GET"
                     connectTimeout = 10000
                     readTimeout = 60000
-                    setRequestProperty("Authorization", "Bearer nova-dev-token")
+                    setRequestProperty("Authorization", "Bearer ${NovaApiClient.DEV_TOKEN}")
                 }
                 if (conn.responseCode == 200) {
                     val response = org.json.JSONObject(conn.inputStream.bufferedReader().readText())
@@ -1151,7 +1151,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     connectTimeout = 30000
                     readTimeout = 60000
                     doOutput = true
-                    setRequestProperty("Authorization", "Bearer nova-dev-token")
+                    setRequestProperty("Authorization", "Bearer ${NovaApiClient.DEV_TOKEN}")
                     setRequestProperty("Content-Type", "application/json")
                 }
                 val body = org.json.JSONObject().apply {
@@ -1310,7 +1310,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     connectTimeout = 10000
                     readTimeout = 30000
                     doOutput = true
-                    setRequestProperty("Authorization", "Bearer nova-dev-token")
+                    setRequestProperty("Authorization", "Bearer ${NovaApiClient.DEV_TOKEN}")
                     setRequestProperty("Content-Type", "application/json")
                 }
                 val body = org.json.JSONObject().apply {
