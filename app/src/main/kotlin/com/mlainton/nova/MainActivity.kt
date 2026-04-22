@@ -970,18 +970,18 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     debugPanel.addView(debugLine("── Round 1 ──", 0xFF9B8FBF.toInt()))
                     round1.keys().forEach { key ->
                         val v = round1.optString(key)
-                        debugPanel.addView(debugLine("$key: ${v.take(150)}${if (v.length > 150) "…" else ""}"))
+                        debugPanel.addView(debugLine("$key: $v"))
                     }
                 }
                 if (challenge.isNotEmpty()) {
                     debugPanel.addView(debugLine("── Challenge ──", 0xFF9B8FBF.toInt()))
-                    debugPanel.addView(debugLine(challenge.take(300)))
+                    debugPanel.addView(debugLine(challenge))
                 }
                 if (round2 != null && round2.length() > 0) {
                     debugPanel.addView(debugLine("── Round 2 ──", 0xFF9B8FBF.toInt()))
                     round2.keys().forEach { key ->
                         val v = round2.optString(key)
-                        debugPanel.addView(debugLine("$key: ${v.take(150)}${if (v.length > 150) "…" else ""}"))
+                        debugPanel.addView(debugLine("$key: $v"))
                     }
                 }
             } catch (_: Exception) {
