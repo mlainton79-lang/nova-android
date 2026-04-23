@@ -131,6 +131,35 @@ object ChatHistoryStore {
         }
     }
 
+    /**
+     * Export a single chat as a JSONObject in the same shape that saveSessions
+     * writes to SharedPreferences. Used by the transcript share/copy flow:
+     * MainActivity posts this JSON to /api/v1/chat/transcript/format and
+     * receives rendered Markdown back. Returns null if no chat matches chatId.
+     */
+    fun exportChatAsJson(context: Context, chatId: String): JSONObject? {
+        val chat = loadSessions(context).firstOrNull { it.id == chatId } ?: return null
+        val messagesArray = JSONArray()
+        chat.messages.takeLast(300).forEach { msg ->
+            messagesArray.put(JSONObject().apply {
+                put("role", msg.role)
+                put("text", msg.text)
+                put("createdAt", msg.createdAt)
+                put("provider", msg.provider)
+                put("debugData", msg.debugData)
+            })
+        }
+        return JSONObject().apply {
+            put("id", chat.id)
+            put("title", chat.title)
+            put("chatNumber", chat.chatNumber)
+            put("createdAt", chat.createdAt)
+            put("updatedAt", chat.updatedAt)
+            put("messages", messagesArray)
+            put("pinned", chat.pinned)
+        }
+    }
+
     fun openChatByNumber(context: Context, number: Int): ChatSessionSummary? {
         ensureDefaultSession(context)
         val chats = loadSessions(context)

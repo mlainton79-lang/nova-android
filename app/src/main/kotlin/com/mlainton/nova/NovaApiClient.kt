@@ -18,7 +18,8 @@ object NovaApiClient {
         val decidingBrain: String,
         val round1: Map<String, String>,
         val challenge: String,
-        val round2Refined: Map<String, String>
+        val round2Refined: Map<String, String>,
+        val failures: Map<String, String> = emptyMap()
     )
 
     data class ChatResult(
@@ -253,6 +254,11 @@ object NovaApiClient {
             val responseText = readAll(if (statusCode in 200..299) connection.inputStream else connection.errorStream)
             val json = JSONObject(responseText.ifBlank { "{}" })
 
+            val failures = mutableMapOf<String, String>()
+            json.optJSONObject("failures")?.let { f ->
+                f.keys().forEach { k -> failures[k] = f.optString(k) }
+            }
+
             val debugData = json.optJSONObject("debug")?.let { d ->
                 val round1 = mutableMapOf<String, String>()
                 d.optJSONObject("round1")?.let { r -> r.keys().forEach { k -> round1[k] = r.optString(k) } }
@@ -262,7 +268,8 @@ object NovaApiClient {
                     decidingBrain = d.optString("deciding_brain", "gemini"),
                     round1 = round1,
                     challenge = d.optString("challenge", ""),
-                    round2Refined = round2
+                    round2Refined = round2,
+                    failures = failures
                 )
             }
 
@@ -471,6 +478,31 @@ object NovaApiClient {
                 } else null
             } else null
         } catch (_: Exception) { null }
+    }
+
+    fun formatTranscript(chatJson: String): String? {
+        return try {
+            val url = URL("$BASE_URL/api/v1/chat/transcript/format")
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 300000
+                readTimeout = 300000
+                doOutput = true
+                instanceFollowRedirects = true
+                setRequestProperty("Authorization", "Bearer $DEV_TOKEN")
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Accept", "text/markdown")
+            }
+            connection.outputStream.use { it.write(chatJson.toByteArray()); it.flush() }
+            val statusCode = connection.responseCode
+            if (statusCode !in 200..299) {
+                null
+            } else {
+                readAll(connection.inputStream).ifBlank { null }
+            }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun readAll(stream: InputStream?): String {

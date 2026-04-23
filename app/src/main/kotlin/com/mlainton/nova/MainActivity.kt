@@ -1,6 +1,8 @@
 package com.mlainton.nova
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -265,17 +267,71 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private fun showChatOptions(session: ChatSessionSummary) {
         val pinLabel = if (session.pinned) "Unpin" else "Pin"
-        val options = arrayOf("Rename", "Delete", pinLabel)
+        val options = arrayOf("Share transcript", "Copy transcript", "Rename", "Delete", pinLabel)
         AlertDialog.Builder(this)
             .setTitle(session.title)
             .setItems(options) { _, which ->
                 when (which) {
-                    0 -> showRenameDialog(session)
-                    1 -> confirmDeleteChat(session)
-                    2 -> { ChatHistoryStore.pinChat(this, session.id); refreshChatList() }
+                    0 -> shareChatTranscript(session)
+                    1 -> copyChatTranscript(session)
+                    2 -> showRenameDialog(session)
+                    3 -> confirmDeleteChat(session)
+                    4 -> { ChatHistoryStore.pinChat(this, session.id); refreshChatList() }
                 }
             }
             .show()
+    }
+
+    private fun shareChatTranscript(session: ChatSessionSummary) {
+        val progress = android.app.ProgressDialog(this).apply {
+            setMessage("Building transcript...")
+            setCancelable(false)
+            show()
+        }
+        Thread {
+            val chatJson = ChatHistoryStore.exportChatAsJson(this@MainActivity, session.id)
+            val markdown = if (chatJson != null) {
+                NovaApiClient.formatTranscript(chatJson.toString())
+            } else null
+            runOnUiThread {
+                progress.dismiss()
+                if (markdown == null) {
+                    Toast.makeText(this@MainActivity, "Couldn't build transcript", Toast.LENGTH_LONG).show()
+                    return@runOnUiThread
+                }
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, markdown)
+                    putExtra(Intent.EXTRA_SUBJECT, "Chat transcript — ${session.title}")
+                }
+                startActivity(Intent.createChooser(intent, "Share transcript"))
+            }
+        }.start()
+    }
+
+    private fun copyChatTranscript(session: ChatSessionSummary) {
+        val progress = android.app.ProgressDialog(this).apply {
+            setMessage("Building transcript...")
+            setCancelable(false)
+            show()
+        }
+        Thread {
+            val chatJson = ChatHistoryStore.exportChatAsJson(this@MainActivity, session.id)
+            val markdown = if (chatJson != null) {
+                NovaApiClient.formatTranscript(chatJson.toString())
+            } else null
+            runOnUiThread {
+                progress.dismiss()
+                if (markdown == null) {
+                    Toast.makeText(this@MainActivity, "Couldn't build transcript", Toast.LENGTH_LONG).show()
+                    return@runOnUiThread
+                }
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("Chat transcript", markdown)
+                clipboard.setPrimaryClip(clip)
+                Toast.makeText(this@MainActivity, "Transcript copied to clipboard", Toast.LENGTH_SHORT).show()
+            }
+        }.start()
     }
 
     private fun showRenameDialog(session: ChatSessionSummary) {
