@@ -10,7 +10,7 @@ import java.net.URL
 
 object NovaApiClient {
     const val BASE_URL = "https://web-production-be42b.up.railway.app"
-    const val DEV_TOKEN = "JsR_s1r8XfaI-BwupHX8NzYhCVO11rflcQvTlNMfrZF4LcCVTYsqX82XZ3cE_Gll"
+    const val DEV_TOKEN = "S0QEE3gtVr-rK8D3L5vVLyph8OSF3py9B4qYUyU1jBssGUa4ZEdXP5w185VpIwDs"
 
     data class HistoryItem(val role: String, val content: String)
 
