@@ -35,6 +35,7 @@
         <activity android:name=".TasksActivity" android:exported="false" />
         <activity android:name=".MemoryActivity" android:exported="false" />
         <activity android:name=".MemoryAuditActivity" android:exported="false" />
+        <activity android:name=".VintedCaptureActivity" android:exported="false" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

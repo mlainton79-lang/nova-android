@@ -85,6 +85,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         private const val PICK_FILE_REQUEST = 1001
         private const val CAMERA_REQUEST = 1002
         private const val VOICE_REQUEST = 1003
+        private const val VINTED_CAPTURE_REQUEST = 1004
         private const val CAMERA_PERMISSION_REQUEST = 2001
         private const val LOCATION_PERMISSION_REQUEST = 2002
         private const val DEFAULT_INPUT_HINT = "Message Tony..."
@@ -1112,14 +1113,21 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             .setMessage("Take a photo of the item. Tony will identify it, research current sold prices, and write the full listing — no input needed from you.")
             .setPositiveButton("Vinted") { _, _ ->
                 pendingVintedPlatform = "vinted"
-                openCameraWithFileProvider()
+                launchVintedCapture("vinted")
             }
             .setNegativeButton("eBay") { _, _ ->
                 pendingVintedPlatform = "ebay"
-                openCameraWithFileProvider()
+                launchVintedCapture("ebay")
             }
             .setNeutralButton("Cancel", null)
             .show()
+    }
+
+    private fun launchVintedCapture(platform: String) {
+        val intent = Intent(this, VintedCaptureActivity::class.java).apply {
+            putExtra("platform", platform)
+        }
+        startActivityForResult(intent, VINTED_CAPTURE_REQUEST)
     }
 
     private fun fetchTonyBriefing() {
