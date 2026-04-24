@@ -77,6 +77,25 @@ class VintedCaptureActivity : AppCompatActivity() {
             true
         }
 
+        if (savedInstanceState != null) {
+            val restoredPaths = savedInstanceState.getStringArrayList("captured_photos")
+            if (restoredPaths != null) {
+                restoredPaths.forEach { path ->
+                    val file = File(path)
+                    if (file.exists()) {
+                        capturedPhotos.add(file)
+                    }
+                }
+                updateCounter()
+            }
+            flashMode = savedInstanceState.getInt("flash_mode", ImageCapture.FLASH_MODE_OFF)
+            flashButton.text = when (flashMode) {
+                ImageCapture.FLASH_MODE_ON -> "⚡ On"
+                ImageCapture.FLASH_MODE_AUTO -> "⚡ Auto"
+                else -> "⚡ Off"
+            }
+        }
+
         cameraExecutor = Executors.newSingleThreadExecutor()
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
@@ -202,6 +221,15 @@ class VintedCaptureActivity : AppCompatActivity() {
             cam.cameraControl.setZoomRatio(newRatio)
             return true
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putStringArrayList(
+            "captured_photos",
+            ArrayList(capturedPhotos.map { it.absolutePath })
+        )
+        outState.putInt("flash_mode", flashMode)
     }
 
     override fun onDestroy() {
