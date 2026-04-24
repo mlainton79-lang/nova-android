@@ -1,13 +1,18 @@
 package com.mlainton.nova
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
+import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.camera.core.AspectRatio
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
@@ -35,8 +40,11 @@ class VintedCaptureActivity : AppCompatActivity() {
     private lateinit var captureButton: Button
     private lateinit var doneButton: Button
     private lateinit var photoCounter: TextView
+    private lateinit var flashButton: Button
 
     private var imageCapture: ImageCapture? = null
+    private var camera: Camera? = null
+    private var flashMode: Int = ImageCapture.FLASH_MODE_OFF
     private lateinit var cameraExecutor: ExecutorService
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,8 +65,17 @@ class VintedCaptureActivity : AppCompatActivity() {
         captureButton = findViewById(R.id.captureButton)
         doneButton = findViewById(R.id.doneButton)
         photoCounter = findViewById(R.id.photoCounter)
+        flashButton = findViewById(R.id.flashButton)
 
         captureButton.setOnClickListener { takePhoto() }
+        flashButton.setOnClickListener { cycleFlashMode() }
+
+        val scaleDetector = ScaleGestureDetector(this, scaleListener)
+        @SuppressLint("ClickableViewAccessibility")
+        previewView.setOnTouchListener { _, event: MotionEvent ->
+            scaleDetector.onTouchEvent(event)
+            true
+        }
 
         cameraExecutor = Executors.newSingleThreadExecutor()
 
@@ -96,18 +113,23 @@ class VintedCaptureActivity : AppCompatActivity() {
             try {
                 val cameraProvider = cameraProviderFuture.get()
 
-                val preview = Preview.Builder().build().also {
+                val preview = Preview.Builder()
+                    .setTargetAspectRatio(AspectRatio.RATIO_4_3)
+                    .build().also {
                     it.setSurfaceProvider(previewView.surfaceProvider)
                 }
 
                 imageCapture = ImageCapture.Builder()
                     .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                    .setTargetAspectRatio(AspectRatio.RATIO_4_3)
+                    .setTargetRotation(previewView.display.rotation)
                     .build()
 
                 val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
                 cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture)
+                camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture)
+                imageCapture?.flashMode = flashMode
                 Log.i(TAG, "Camera bound")
             } catch (e: Exception) {
                 Log.e(TAG, "Camera bind failed: ${e.message}", e)
@@ -154,6 +176,32 @@ class VintedCaptureActivity : AppCompatActivity() {
     private fun updateCounter() {
         photoCounter.text = "Photos: ${capturedPhotos.size} / $MAX_PHOTOS"
         doneButton.isEnabled = capturedPhotos.isNotEmpty()
+    }
+
+    private fun cycleFlashMode() {
+        flashMode = when (flashMode) {
+            ImageCapture.FLASH_MODE_OFF -> ImageCapture.FLASH_MODE_ON
+            ImageCapture.FLASH_MODE_ON -> ImageCapture.FLASH_MODE_AUTO
+            else -> ImageCapture.FLASH_MODE_OFF
+        }
+        imageCapture?.flashMode = flashMode
+        flashButton.text = when (flashMode) {
+            ImageCapture.FLASH_MODE_ON -> "⚡ On"
+            ImageCapture.FLASH_MODE_AUTO -> "⚡ Auto"
+            else -> "⚡ Off"
+        }
+    }
+
+    private val scaleListener = object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+        override fun onScale(detector: ScaleGestureDetector): Boolean {
+            val cam = camera ?: return true
+            val zoomState = cam.cameraInfo.zoomState.value ?: return true
+            val current = zoomState.zoomRatio
+            val newRatio = (current * detector.scaleFactor)
+                .coerceIn(zoomState.minZoomRatio, zoomState.maxZoomRatio)
+            cam.cameraControl.setZoomRatio(newRatio)
+            return true
+        }
     }
 
     override fun onDestroy() {
