@@ -1110,7 +1110,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         // 1. Take photo, 2. Tony identifies and researches, 3. Creates full listing automatically
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("Create Vinted/eBay listing")
-            .setMessage("Take a photo of the item. Tony will identify it, research current sold prices, and write the full listing — no input needed from you.")
+            .setMessage("Tony will identify the item, suggest a price, and draft the listing for you.")
             .setPositiveButton("Vinted") { _, _ ->
                 pendingVintedPlatform = "vinted"
                 launchVintedCapture("vinted")
