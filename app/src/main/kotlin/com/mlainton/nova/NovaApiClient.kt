@@ -1,12 +1,44 @@
 package com.mlainton.nova
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.util.Base64
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
+import java.io.ByteArrayOutputStream
+import java.io.File
 import java.io.InputStreamReader
 import java.io.InputStream
 import java.net.HttpURLConnection
+import java.net.SocketTimeoutException
 import java.net.URL
+import java.util.UUID
+
+data class VintedListingRequest(
+    val imagePaths: List<String>,
+    val platform: String,
+    val condition: String = "good",
+    val userNotes: String = "",
+    val idempotencyKey: String = UUID.randomUUID().toString()
+)
+
+data class VintedListingResult(
+    val ok: Boolean,
+    val itemName: String,
+    val brand: String?,
+    val title: String,
+    val description: String,
+    val suggestedPrice: String,
+    val condition: String,
+    val category: String,
+    val confidence: String,
+    val needsManualVerification: Boolean,
+    val warnings: List<String>,
+    val rawJson: String?,
+    val errorCode: String?,
+    val errorMessage: String?
+)
 
 object NovaApiClient {
     const val BASE_URL = "https://web-production-be42b.up.railway.app"
@@ -501,6 +533,233 @@ object NovaApiClient {
                 readAll(connection.inputStream).ifBlank { null }
             }
         } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun createVintedListingMulti(req: VintedListingRequest): VintedListingResult {
+        val imagesArray = JSONArray()
+        for (path in req.imagePaths) {
+            val file = File(path)
+            if (!file.exists()) continue
+            val b64 = downscaleJpegToBase64(file) ?: continue
+            imagesArray.put(JSONObject().apply {
+                put("base64", b64)
+                put("mime", "image/jpeg")
+            })
+        }
+
+        if (imagesArray.length() == 0) {
+            return VintedListingResult(
+                ok = false, itemName = "", brand = null, title = "", description = "",
+                suggestedPrice = "", condition = "", category = "", confidence = "",
+                needsManualVerification = true, warnings = emptyList(),
+                rawJson = null, errorCode = "no_images_readable",
+                errorMessage = "Couldn't read any of your photos. Try retaking."
+            )
+        }
+
+        val body = JSONObject().apply {
+            put("platform", req.platform)
+            put("condition", req.condition)
+            put("user_notes", req.userNotes)
+            put("images", imagesArray)
+        }.toString()
+
+        return try {
+            val url = URL("$BASE_URL/api/v1/vinted/create-listing")
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 30000
+                readTimeout = 300000
+                doOutput = true
+                instanceFollowRedirects = true
+                setRequestProperty("Authorization", "Bearer $DEV_TOKEN")
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Accept", "application/json")
+                setRequestProperty("X-Idempotency-Key", req.idempotencyKey)
+            }
+
+            connection.outputStream.use { it.write(body.toByteArray()); it.flush() }
+
+            val statusCode = connection.responseCode
+            when {
+                statusCode in 200..299 -> {
+                    val responseText = readAll(connection.inputStream)
+                    parseVintedListingResult(responseText)
+                }
+                statusCode == 401 || statusCode == 403 -> VintedListingResult(
+                    ok = false, itemName = "", brand = null, title = "", description = "",
+                    suggestedPrice = "", condition = "", category = "", confidence = "",
+                    needsManualVerification = true, warnings = emptyList(),
+                    rawJson = null, errorCode = "auth_error",
+                    errorMessage = "Auth issue — check token. Photos kept."
+                )
+                statusCode == 422 -> VintedListingResult(
+                    ok = false, itemName = "", brand = null, title = "", description = "",
+                    suggestedPrice = "", condition = "", category = "", confidence = "",
+                    needsManualVerification = true, warnings = emptyList(),
+                    rawJson = null, errorCode = "invalid_payload",
+                    errorMessage = "Photos couldn't be sent (invalid format). Photos kept."
+                )
+                statusCode in 500..599 -> VintedListingResult(
+                    ok = false, itemName = "", brand = null, title = "", description = "",
+                    suggestedPrice = "", condition = "", category = "", confidence = "",
+                    needsManualVerification = true, warnings = emptyList(),
+                    rawJson = null, errorCode = "backend_error",
+                    errorMessage = "Tony's having trouble. Photos kept — try again."
+                )
+                else -> VintedListingResult(
+                    ok = false, itemName = "", brand = null, title = "", description = "",
+                    suggestedPrice = "", condition = "", category = "", confidence = "",
+                    needsManualVerification = true, warnings = emptyList(),
+                    rawJson = null, errorCode = "unexpected_status",
+                    errorMessage = "Unexpected response from Tony (HTTP $statusCode). Photos kept."
+                )
+            }
+        } catch (e: SocketTimeoutException) {
+            android.util.Log.e("NovaApiClient", "createVintedListingMulti timeout", e)
+            VintedListingResult(
+                ok = false, itemName = "", brand = null, title = "", description = "",
+                suggestedPrice = "", condition = "", category = "", confidence = "",
+                needsManualVerification = true, warnings = emptyList(),
+                rawJson = null, errorCode = "timeout",
+                errorMessage = "Tony took too long. Photos kept — try again."
+            )
+        } catch (e: java.io.IOException) {
+            android.util.Log.e("NovaApiClient", "createVintedListingMulti IO error", e)
+            VintedListingResult(
+                ok = false, itemName = "", brand = null, title = "", description = "",
+                suggestedPrice = "", condition = "", category = "", confidence = "",
+                needsManualVerification = true, warnings = emptyList(),
+                rawJson = null, errorCode = "network_error",
+                errorMessage = "Couldn't reach Tony. Photos kept — try again."
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("NovaApiClient", "createVintedListingMulti unknown error", e)
+            VintedListingResult(
+                ok = false, itemName = "", brand = null, title = "", description = "",
+                suggestedPrice = "", condition = "", category = "", confidence = "",
+                needsManualVerification = true, warnings = emptyList(),
+                rawJson = null, errorCode = "unknown_error",
+                errorMessage = "Something went wrong. Photos kept."
+            )
+        }
+    }
+
+    private fun parseVintedListingResult(rawBody: String): VintedListingResult {
+        return try {
+            val root = JSONObject(rawBody)
+            val item = root.optJSONObject("item") ?: JSONObject()
+            val listing = root.optJSONObject("listing") ?: JSONObject()
+            val warningsArray = root.optJSONArray("warnings")
+            val warnings = mutableListOf<String>()
+            if (warningsArray != null) {
+                for (i in 0 until warningsArray.length()) {
+                    val w = warningsArray.optString(i, "")
+                    if (w.isNotBlank()) warnings.add(w)
+                }
+            }
+
+            val itemName = item.optString("item_name", "").takeIf { it.isNotBlank() }
+                ?: listing.optString("title", "").takeIf { it.isNotBlank() }
+                ?: "Unknown item"
+
+            val brand = item.optString("brand", "").takeIf { it.isNotBlank() }
+
+            val title = listing.optString("title", "").takeIf { it.isNotBlank() } ?: itemName
+            val description = listing.optString("description", "")
+
+            val rawPrice: Any? = if (listing.has("suggested_price") && !listing.isNull("suggested_price")) {
+                listing.opt("suggested_price")
+            } else if (item.has("suggested_uk_resale_price") && !item.isNull("suggested_uk_resale_price")) {
+                item.opt("suggested_uk_resale_price")
+            } else null
+            val suggestedPrice = when (rawPrice) {
+                is Int -> "£$rawPrice"
+                is Double -> "£${rawPrice.toInt()}"
+                is Long -> "£$rawPrice"
+                is String -> if (rawPrice.startsWith("£")) rawPrice else "£$rawPrice"
+                null -> ""
+                else -> "£$rawPrice"
+            }
+
+            val condition = listing.optString("condition", "").takeIf { it.isNotBlank() }
+                ?: item.optString("condition_visible", "").takeIf { it.isNotBlank() }
+                ?: "good"
+
+            val category = listing.optString("category_suggestion", "").takeIf { it.isNotBlank() }
+                ?: item.optString("category", "").takeIf { it.isNotBlank() }
+                ?: ""
+
+            val confidence = item.optString("confidence", "")
+            val needsManualVerification = item.optBoolean("needs_manual_verification", false)
+
+            val parseOk = title.isNotBlank() && description.isNotBlank()
+
+            VintedListingResult(
+                ok = parseOk,
+                itemName = itemName,
+                brand = brand,
+                title = title,
+                description = description,
+                suggestedPrice = suggestedPrice,
+                condition = condition,
+                category = category,
+                confidence = confidence,
+                needsManualVerification = needsManualVerification,
+                warnings = warnings,
+                rawJson = rawBody,
+                errorCode = if (parseOk) null else "incomplete_response",
+                errorMessage = if (parseOk) null else "Tony returned an incomplete draft. Photos kept — try again."
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("NovaApiClient", "parseVintedListingResult failed", e)
+            VintedListingResult(
+                ok = false, itemName = "", brand = null, title = "", description = "",
+                suggestedPrice = "", condition = "", category = "", confidence = "",
+                needsManualVerification = true, warnings = emptyList(),
+                rawJson = rawBody, errorCode = "parse_error",
+                errorMessage = "Couldn't read Tony's response. Photos kept — try again."
+            )
+        }
+    }
+
+    private fun downscaleJpegToBase64(file: File, maxEdgePx: Int = 1600, quality: Int = 85): String? {
+        return try {
+            val boundsOptions = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(file.absolutePath, boundsOptions)
+
+            if (boundsOptions.outWidth <= 0 || boundsOptions.outHeight <= 0) return null
+
+            var sampleSize = 1
+            while ((boundsOptions.outWidth / sampleSize) > maxEdgePx * 2 ||
+                   (boundsOptions.outHeight / sampleSize) > maxEdgePx * 2) {
+                sampleSize *= 2
+            }
+
+            val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+            val sampledBitmap = BitmapFactory.decodeFile(file.absolutePath, decodeOptions) ?: return null
+
+            val w = sampledBitmap.width
+            val h = sampledBitmap.height
+            val scale = if (w >= h) maxEdgePx.toFloat() / w else maxEdgePx.toFloat() / h
+            val finalBitmap = if (scale < 1.0f) {
+                Bitmap.createScaledBitmap(sampledBitmap, (w * scale).toInt(), (h * scale).toInt(), true)
+            } else {
+                sampledBitmap
+            }
+
+            val baos = ByteArrayOutputStream()
+            finalBitmap.compress(Bitmap.CompressFormat.JPEG, quality, baos)
+            val bytes = baos.toByteArray()
+
+            if (finalBitmap !== sampledBitmap) sampledBitmap.recycle()
+            finalBitmap.recycle()
+
+            Base64.encodeToString(bytes, Base64.NO_WRAP)
+        } catch (e: Exception) {
+            android.util.Log.e("NovaApiClient", "downscaleJpegToBase64 failed for ${file.absolutePath}", e)
             null
         }
     }

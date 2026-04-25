@@ -1257,6 +1257,57 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }.start()
     }
 
+    private fun renderVintedListingResult(result: VintedListingResult, platform: String) {
+        if (!result.ok) {
+            statusText.text = result.errorMessage ?: "Couldn't create listing draft. Photos kept."
+            return
+        }
+
+        val sb = StringBuilder()
+        sb.append("**${result.itemName}** identified.\n")
+        if (!result.brand.isNullOrBlank()) {
+            sb.append("Brand: ${result.brand}\n")
+        }
+        if (result.suggestedPrice.isNotBlank()) {
+            sb.append("Suggested price: ${result.suggestedPrice}\n")
+        }
+        sb.append("\n**Title**\n")
+        sb.append(result.title).append("\n\n")
+        sb.append("**Description**\n")
+        sb.append(result.description).append("\n")
+        if (result.condition.isNotBlank()) {
+            sb.append("\nCondition: ${result.condition}")
+        }
+        if (result.category.isNotBlank()) {
+            sb.append("\nCategory: ${result.category}")
+        }
+
+        val warningFooters = mutableListOf<String>()
+        if (result.warnings.contains("vision_identification")) {
+            warningFooters.add("⚠ Vision fell back — please verify item name.")
+        }
+        if (result.warnings.contains("listing_draft")) {
+            warningFooters.add("⚠ Draft generated locally — please review title/description.")
+        }
+        if (result.confidence.equals("low", ignoreCase = true) || result.needsManualVerification) {
+            warningFooters.add("⚠ Low confidence — verify before posting on $platform.")
+        }
+        if (warningFooters.isNotEmpty()) {
+            sb.append("\n\n")
+            warningFooters.forEachIndexed { idx, w ->
+                sb.append(w)
+                if (idx < warningFooters.size - 1) sb.append("\n")
+            }
+        }
+
+        val markdown = sb.toString().trimEnd()
+
+        ChatHistoryStore.appendMessage(this, "tony", markdown, provider = "vinted")
+        statusText.text = "Listing ready ◆"
+        renderChatHistory()
+        refreshChatList()
+    }
+
     private fun showOnDeviceModelStatus() {
         val downloaded = OnDeviceModel.isModelDownloaded(this)
         val ready = OnDeviceModel.isReady()
@@ -1619,6 +1670,39 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 statusText.text = "No camera preview returned"
                 Toast.makeText(this, "The camera did not return an image.", Toast.LENGTH_SHORT).show()
             }
+        }
+
+        if (requestCode == VINTED_CAPTURE_REQUEST) {
+            if (resultCode != RESULT_OK || data == null) {
+                return
+            }
+
+            val photoPaths = data.getStringArrayListExtra("photo_paths")
+            val platform = data.getStringExtra("platform")
+
+            if (photoPaths.isNullOrEmpty() || platform.isNullOrBlank()) {
+                Toast.makeText(this, "No photos returned — try again.", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            if (!NetworkUtil.isOnline(this)) {
+                statusText.text = "Offline — photos kept. Try again when you're connected."
+                return
+            }
+
+            statusText.text = "Tony ◆ creating listing draft from ${photoPaths.size} photos…"
+
+            Thread {
+                val request = VintedListingRequest(
+                    imagePaths = photoPaths,
+                    platform = platform
+                )
+                val result = NovaApiClient.createVintedListingMulti(request)
+
+                runOnUiThread {
+                    renderVintedListingResult(result, platform)
+                }
+            }.start()
         }
     }
 
