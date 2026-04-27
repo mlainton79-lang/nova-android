@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/nova_surface"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:id="@+id/draftReviewTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Review Vinted Draft"
+            android:textSize="22sp"
+            android:textColor="@color/nova_text_primary"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:id="@+id/draftReviewSubtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Tony's draft — edit, copy, retry, or mark as posted."
+            android:textSize="13sp"
+            android:textColor="@color/nova_text_dim"
+            android:layout_marginBottom="16dp" />
+
+        <LinearLayout
+            android:id="@+id/warningBanner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="12dp"
+            android:background="@color/nova_surface2"
+            android:layout_marginBottom="16dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/warningText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="13sp"
+                android:textColor="@color/nova_text_secondary" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Item Name"
+            android:textSize="13sp"
+            android:textColor="@color/nova_text_dim"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:id="@+id/itemNameValue"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="16sp"
+            android:textColor="@color/nova_text_primary"
+            android:layout_marginBottom="16dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Brand"
+            android:textSize="13sp"
+            android:textColor="@color/nova_text_dim"
+            android:layout_marginBottom="4dp" />
+
+        <EditText
+            android:id="@+id/brandEdit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="15sp"
+            android:textColor="@color/nova_text_primary"
+            android:layout_marginBottom="12dp"
+            android:inputType="text" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Title"
+            android:textSize="13sp"
+            android:textColor="@color/nova_text_dim"
+            android:layout_marginBottom="4dp" />
+
+        <EditText
+            android:id="@+id/titleEdit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="15sp"
+            android:textColor="@color/nova_text_primary"
+            android:inputType="textCapSentences"
+            android:layout_marginBottom="4dp" />
+
+        <Button
+            android:id="@+id/copyTitleButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Copy title"
+            android:layout_marginBottom="12dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Description"
+            android:textSize="13sp"
+            android:textColor="@color/nova_text_dim"
+            android:layout_marginBottom="4dp" />
+
+        <EditText
+            android:id="@+id/descriptionEdit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="15sp"
+            android:textColor="@color/nova_text_primary"
+            android:gravity="top|start"
+            android:minLines="6"
+            android:inputType="textMultiLine|textCapSentences"
+            android:layout_marginBottom="4dp" />
+
+        <Button
+            android:id="@+id/copyDescriptionButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Copy description"
+            android:layout_marginBottom="12dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Suggested Price (£)"
+            android:textSize="13sp"
+            android:textColor="@color/nova_text_dim"
+            android:layout_marginBottom="4dp" />
+
+        <EditText
+            android:id="@+id/priceEdit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="15sp"
+            android:textColor="@color/nova_text_primary"
+            android:inputType="number"
+            android:layout_marginBottom="4dp" />
+
+        <Button
+            android:id="@+id/copyPriceButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Copy price"
+            android:layout_marginBottom="12dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Condition"
+            android:textSize="13sp"
+            android:textColor="@color/nova_text_dim"
+            android:layout_marginBottom="4dp" />
+
+        <EditText
+            android:id="@+id/conditionEdit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="15sp"
+            android:textColor="@color/nova_text_primary"
+            android:inputType="text"
+            android:layout_marginBottom="12dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Category"
+            android:textSize="13sp"
+            android:textColor="@color/nova_text_dim"
+            android:layout_marginBottom="4dp" />
+
+        <EditText
+            android:id="@+id/categoryEdit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="15sp"
+            android:textColor="@color/nova_text_primary"
+            android:inputType="text"
+            android:layout_marginBottom="20dp" />
+
+        <Button
+            android:id="@+id/copyAllButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Copy all (full draft)"
+            android:layout_marginBottom="20dp" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/nova_surface2"
+            android:layout_marginBottom="20dp" />
+
+        <Button
+            android:id="@+id/retryButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Retry — get a fresh draft"
+            android:layout_marginBottom="8dp" />
+
+        <Button
+            android:id="@+id/discardButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Discard"
+            android:layout_marginBottom="8dp" />
+
+        <Button
+            android:id="@+id/markPostedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Mark as posted"
+            android:layout_marginBottom="16dp" />
+
+    </LinearLayout>
+</ScrollView>

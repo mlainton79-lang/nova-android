@@ -80,6 +80,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var morningReportChecked = false
     private var lastKnownLocation: String? = null
     private var pendingVintedPlatform: String? = null
+    private var resumed: Boolean = false
 
     companion object {
         private const val PICK_FILE_REQUEST = 1001
@@ -235,10 +236,16 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     override fun onResume() {
         super.onResume()
+        resumed = true
         currentBrainMode = BrokerPrefs.getBrainMode(this)
         renderBrainMode()
         renderChatHistory()
         refreshChatList()
+    }
+
+    override fun onPause() {
+        resumed = false
+        super.onPause()
     }
 
     override fun onInit(status: Int) {
@@ -1701,6 +1708,33 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
                 runOnUiThread {
                     renderVintedListingResult(result, platform)
+
+                    if (result.errorCode == null) {
+                        val draftId = VintedDraftSessionStore.newDraftId()
+                        val payload = VintedDraftSessionStore.Payload(
+                            draftId = draftId,
+                            itemName = result.itemName,
+                            brand = result.brand,
+                            title = result.title,
+                            description = result.description,
+                            suggestedPrice = result.suggestedPrice,
+                            condition = result.condition,
+                            category = result.category,
+                            confidence = result.confidence,
+                            needsManualVerification = result.needsManualVerification,
+                            warnings = result.warnings,
+                            rawJson = result.rawJson,
+                            platform = platform,
+                            photoPaths = photoPaths
+                        )
+                        VintedDraftSessionStore.put(payload)
+
+                        if (resumed && !isFinishing && !isDestroyed) {
+                            val intent = Intent(this@MainActivity, VintedDraftReviewActivity::class.java)
+                            intent.putExtra(VintedDraftReviewActivity.EXTRA_DRAFT_ID, draftId)
+                            startActivity(intent)
+                        }
+                    }
                 }
             }.start()
         }
