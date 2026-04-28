@@ -4,6 +4,8 @@ import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
@@ -12,6 +14,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.FileProvider
 import java.io.File
 import java.util.UUID
 
@@ -38,6 +41,7 @@ class VintedDraftReviewActivity : AppCompatActivity() {
     private lateinit var copyDescriptionButton: Button
     private lateinit var copyPriceButton: Button
     private lateinit var copyAllButton: Button
+    private lateinit var openVintedButton: Button
     private lateinit var retryButton: Button
     private lateinit var discardButton: Button
     private lateinit var markPostedButton: Button
@@ -88,6 +92,7 @@ class VintedDraftReviewActivity : AppCompatActivity() {
         copyDescriptionButton = findViewById(R.id.copyDescriptionButton)
         copyPriceButton = findViewById(R.id.copyPriceButton)
         copyAllButton = findViewById(R.id.copyAllButton)
+        openVintedButton = findViewById(R.id.openVintedButton)
         retryButton = findViewById(R.id.retryButton)
         discardButton = findViewById(R.id.discardButton)
         markPostedButton = findViewById(R.id.markPostedButton)
@@ -145,11 +150,13 @@ class VintedDraftReviewActivity : AppCompatActivity() {
                 appendLine()
                 appendLine(descriptionEdit.text.toString())
                 appendLine()
-                append("Price: £").append(priceEdit.text.toString())
+                append("Price: ").append(priceEdit.text.toString())
             }
             copyToClipboard("Vinted draft", full)
             Toast.makeText(this, "Full draft copied", Toast.LENGTH_SHORT).show()
         }
+
+        openVintedButton.setOnClickListener { onOpenVintedClicked() }
 
         retryButton.setOnClickListener { onRetryClicked() }
         discardButton.setOnClickListener { onDiscardClicked() }
@@ -265,6 +272,69 @@ class VintedDraftReviewActivity : AppCompatActivity() {
             } catch (_: Exception) {
                 // best-effort cleanup
             }
+        }
+    }
+
+    private fun buildVintedShareText(): String {
+        val title = titleEdit.text.toString().trim()
+        val description = descriptionEdit.text.toString().trim()
+        val price = priceEdit.text.toString().trim()
+        return buildString {
+            if (title.isNotEmpty()) {
+                append(title)
+                append("\n\n")
+            }
+            if (description.isNotEmpty()) {
+                append(description)
+                append("\n\n")
+            }
+            if (price.isNotEmpty()) {
+                append("Price: ")
+                append(price)
+            }
+        }.trimEnd()
+    }
+
+    private fun onOpenVintedClicked() {
+        val shareText = buildVintedShareText()
+        copyToClipboard("Vinted draft", shareText)
+
+        val existingFiles = photoPaths
+            .map { File(it) }
+            .filter { it.exists() }
+
+        if (existingFiles.isEmpty()) {
+            Toast.makeText(this, "No photos available — draft text copied to clipboard", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        try {
+            val uris = existingFiles.map { file ->
+                FileProvider.getUriForFile(this, "${packageName}.fileprovider", file)
+            }
+
+            val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                type = "image/jpeg"
+                putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
+                putExtra(Intent.EXTRA_TEXT, shareText)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+
+                val clip = ClipData.newUri(contentResolver, "Vinted photos", uris[0])
+                for (i in 1 until uris.size) {
+                    clip.addItem(ClipData.Item(uris[i]))
+                }
+                clipData = clip
+            }
+
+            val handlers = packageManager.queryIntentActivities(intent, 0)
+            if (handlers.isEmpty()) {
+                Toast.makeText(this, "No app available — draft text copied to clipboard", Toast.LENGTH_LONG).show()
+                return
+            }
+
+            startActivity(Intent.createChooser(intent, "Open in Vinted"))
+        } catch (e: Exception) {
+            Toast.makeText(this, "Could not open Vinted — draft text copied to clipboard", Toast.LENGTH_LONG).show()
         }
     }
 }
