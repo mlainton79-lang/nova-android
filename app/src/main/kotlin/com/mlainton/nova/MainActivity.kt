@@ -1728,6 +1728,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                             photoPaths = photoPaths
                         )
                         VintedDraftSessionStore.put(payload)
+                        Thread {
+                            VintedDraftStore.save(applicationContext, payload)
+                        }.start()
 
                         if (resumed && !isFinishing && !isDestroyed) {
                             val intent = Intent(this@MainActivity, VintedDraftReviewActivity::class.java)

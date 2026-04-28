@@ -54,7 +54,15 @@ class VintedDraftReviewActivity : AppCompatActivity() {
         }
         draftId = incomingDraftId
 
-        val payload = VintedDraftSessionStore.get(draftId)
+        val payload = VintedDraftSessionStore.get(draftId) ?: run {
+            // Memory miss — try disk fallback (process death, re-entry from drafts list)
+            val diskPayload = VintedDraftStore.load(this, draftId)
+            if (diskPayload != null) {
+                // Repopulate session store so subsequent operations are fast
+                VintedDraftSessionStore.put(diskPayload)
+            }
+            diskPayload
+        }
         if (payload == null) {
             Toast.makeText(this, "Draft no longer available — capture again to create a new listing.", Toast.LENGTH_LONG).show()
             finish()
@@ -198,6 +206,9 @@ class VintedDraftReviewActivity : AppCompatActivity() {
                             photoPaths = photoPaths
                         )
                         VintedDraftSessionStore.put(newPayload)
+                        Thread {
+                            VintedDraftStore.save(applicationContext, newPayload)
+                        }.start()
                         applyPayload(newPayload)
                         retryButton.isEnabled = true
                         retryButton.text = "Retry — get a fresh draft"
@@ -221,6 +232,7 @@ class VintedDraftReviewActivity : AppCompatActivity() {
             .setPositiveButton("Discard") { _, _ ->
                 deleteDraftPhotosSafely()
                 VintedDraftSessionStore.remove(draftId)
+                VintedDraftStore.delete(this@VintedDraftReviewActivity, draftId)
                 finish()
             }
             .setNegativeButton("Cancel", null)
@@ -230,6 +242,7 @@ class VintedDraftReviewActivity : AppCompatActivity() {
     private fun onMarkPostedClicked() {
         deleteDraftPhotosSafely()
         VintedDraftSessionStore.remove(draftId)
+        VintedDraftStore.delete(this, draftId)
 
         ChatHistoryStore.appendMessage(
             context = this,
