@@ -66,6 +66,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var drawerCloseButton: Button
     private lateinit var drawerNewChatButton: Button
     private lateinit var drawerSyncCodebaseButton: Button
+    private lateinit var drawerVintedDraftsButton: Button
 
     private var tts: TextToSpeech? = null
     private var ttsReady = false
@@ -118,6 +119,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         drawerCloseButton = findViewById(R.id.drawerCloseButton)
         drawerNewChatButton = findViewById(R.id.drawerNewChatButton)
         drawerSyncCodebaseButton = findViewById(R.id.drawerSyncCodebaseButton)
+        drawerVintedDraftsButton = findViewById(R.id.drawerVintedDraftsButton)
 
         currentBrainMode = BrokerPrefs.getBrainMode(this)
         renderBrainMode()
@@ -162,6 +164,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             syncCodebaseToTony()
         }
 
+        drawerVintedDraftsButton.setOnClickListener {
+            drawerLayout.closeDrawer(GravityCompat.START)
+            startActivity(Intent(this, VintedDraftListActivity::class.java))
+        }
+
 
         plusButton.setOnClickListener { showPlusMenu(it) }
         plusButton.setOnLongClickListener { startVintedFlow(); true }
@@ -197,6 +204,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 val ok = OnDeviceModel.initialise(this)
                 android.util.Log.d("TONY", "On-device model: ${if (ok) "ready" else "failed"}")
             }
+        }.start()
+        Thread {
+            VintedDraftStore.cleanStale(applicationContext)
         }.start()
         renderChatHistory()
     }
@@ -658,6 +668,10 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     renderChatHistory()
                     refreshChatList()
                 }
+                true
+            }
+            lower == "vinted drafts" || lower == "show vinted drafts" || lower == "list drafts" -> {
+                startActivity(Intent(this, VintedDraftListActivity::class.java))
                 true
             }
             else -> false
