@@ -1394,6 +1394,18 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
         return try {
             val now = System.currentTimeMillis()
+            // N1.calendar-fix-A: lower bound is start of today (00:00 local)
+            // not now, so events that already started today (school run, work
+            // shifts in progress, etc) are included in Tony's calendar context.
+            // If Matthew asks at 18:00 "what have I got on today?" he should
+            // still see this morning's school run, not just events still
+            // in progress.
+            val startOfToday = java.util.Calendar.getInstance().apply {
+                set(java.util.Calendar.HOUR_OF_DAY, 0)
+                set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+            }.timeInMillis
             val weekAhead = now + (7 * 24 * 60 * 60 * 1000L)
             val uri = android.provider.CalendarContract.Events.CONTENT_URI
             val projection = arrayOf(
@@ -1405,7 +1417,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 android.provider.CalendarContract.Events.ALL_DAY
             )
             val selection = "${android.provider.CalendarContract.Events.DTSTART} >= ? AND ${android.provider.CalendarContract.Events.DTSTART} <= ? AND ${android.provider.CalendarContract.Events.DELETED} = 0"
-            val cursor = contentResolver.query(uri, projection, selection, arrayOf(now.toString(), weekAhead.toString()), "${android.provider.CalendarContract.Events.DTSTART} ASC")
+            val cursor = contentResolver.query(uri, projection, selection, arrayOf(startOfToday.toString(), weekAhead.toString()), "${android.provider.CalendarContract.Events.DTSTART} ASC")
             val events = StringBuilder()
             cursor?.use {
                 val titleIdx = it.getColumnIndex(android.provider.CalendarContract.Events.TITLE)
