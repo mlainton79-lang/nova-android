@@ -171,6 +171,17 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             startActivity(Intent(this, VintedDraftListActivity::class.java))
         }
 
+        // N1.vinted-3B.1 dev launcher: long-press the existing Vinted drafts
+        // entry to open the WebView operator session shell. Hidden behind a
+        // long-press because this brick is a developer-only spike — no
+        // permanent UI surface yet. Promote to a normal drawer entry once
+        // the WebView session-persistence is verified.
+        drawerVintedDraftsButton.setOnLongClickListener {
+            drawerLayout.closeDrawer(GravityCompat.START)
+            startActivity(Intent(this, VintedWebOperatorActivity::class.java))
+            true
+        }
+
         drawerEmailDraftsButton.setOnClickListener {
             drawerLayout.closeDrawer(GravityCompat.START)
             startActivity(Intent(this, EmailDraftListActivity::class.java))

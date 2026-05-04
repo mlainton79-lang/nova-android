@@ -56,6 +56,12 @@
             android:exported="false"
             android:screenOrientation="portrait" />
 
+        <activity
+            android:name=".VintedWebOperatorActivity"
+            android:label="Vinted Operator"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
