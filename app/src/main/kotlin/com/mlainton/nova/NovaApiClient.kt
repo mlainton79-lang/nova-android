@@ -783,6 +783,17 @@ object NovaApiClient {
     // scans of pending email drafts from the Android app.
     // =========================================================================
 
+    /**
+     * Tolerant JSON parse. Returns null on any parse failure (blank text,
+     * non-object root, invalid JSON, stray characters). Used by the draft
+     * endpoints so a 2xx HTTP success isn't overruled by a body-parse
+     * exception.
+     */
+    private fun parseJsonOrNull(text: String): JSONObject? {
+        if (text.isBlank()) return null
+        return try { JSONObject(text) } catch (e: Exception) { null }
+    }
+
     data class EmailDraft(
         val id: Int,
         val account: String,
@@ -829,12 +840,18 @@ object NovaApiClient {
             }
             val statusCode = connection.responseCode
             val responseText = readAll(if (statusCode in 200..299) connection.inputStream else connection.errorStream)
-            if (statusCode !in 200..299) {
-                return DraftListResult(false, emptyList(), "HTTP $statusCode")
+            val httpOk = statusCode in 200..299
+            val json = parseJsonOrNull(responseText)
+            if (!httpOk) {
+                // Non-2xx: prefer parsed error, fall back to raw body / status.
+                val err = json?.optString("error", null)
+                    ?: responseText.take(200).ifBlank { "HTTP $statusCode" }
+                return DraftListResult(false, emptyList(), err)
             }
-            val json = JSONObject(responseText.ifBlank { "{}" })
-            val arr = json.optJSONArray("drafts") ?: JSONArray()
+            // 2xx: trust HTTP success. Body parse is best-effort for the list.
+            // Missing/non-array "drafts" is treated as empty list, not failure.
             val drafts = mutableListOf<EmailDraft>()
+            val arr = json?.optJSONArray("drafts") ?: JSONArray()
             for (i in 0 until arr.length()) {
                 val o = arr.optJSONObject(i) ?: continue
                 drafts.add(
@@ -852,7 +869,9 @@ object NovaApiClient {
                     )
                 )
             }
-            DraftListResult(json.optBoolean("ok", true), drafts)
+            // Respect explicit json.ok=false on a 2xx (rare backend pattern).
+            val ok = if (json != null && json.has("ok")) json.optBoolean("ok", true) else true
+            DraftListResult(ok, drafts)
         } catch (e: Exception) {
             DraftListResult(false, emptyList(), e.message ?: "network error")
         }
@@ -879,12 +898,23 @@ object NovaApiClient {
             connection.outputStream.use { it.write(body.toString().toByteArray()); it.flush() }
             val statusCode = connection.responseCode
             val responseText = readAll(if (statusCode in 200..299) connection.inputStream else connection.errorStream)
-            val json = JSONObject(responseText.ifBlank { "{}" })
-            val ok = json.optBoolean("ok", statusCode in 200..299)
+            val httpOk = statusCode in 200..299
+            val json = parseJsonOrNull(responseText)
+            // Trust HTTP status. Only override to false if a 2xx body
+            // explicitly says ok=false (rare backend pattern). Parse failure
+            // on a 2xx is silently ignored — the email already left the server.
+            val ok = if (json != null && json.has("ok")) {
+                json.optBoolean("ok", httpOk)
+            } else {
+                httpOk
+            }
             DraftActionResult(
                 ok = ok,
-                message = if (ok) json.optString("message", "Sent.") else null,
-                error = if (!ok) json.optString("error", "send failed") else null
+                message = if (ok) (json?.optString("message", "Sent.") ?: "Sent.") else null,
+                error = if (!ok) {
+                    json?.optString("error", null)
+                        ?: responseText.take(200).ifBlank { "HTTP $statusCode" }
+                } else null
             )
         } catch (e: Exception) {
             DraftActionResult(false, error = e.message ?: "network error")
@@ -907,12 +937,20 @@ object NovaApiClient {
             connection.outputStream.use { it.write("{}".toByteArray()); it.flush() }
             val statusCode = connection.responseCode
             val responseText = readAll(if (statusCode in 200..299) connection.inputStream else connection.errorStream)
-            val json = JSONObject(responseText.ifBlank { "{}" })
-            val ok = json.optBoolean("ok", statusCode in 200..299)
+            val httpOk = statusCode in 200..299
+            val json = parseJsonOrNull(responseText)
+            val ok = if (json != null && json.has("ok")) {
+                json.optBoolean("ok", httpOk)
+            } else {
+                httpOk
+            }
             DraftActionResult(
                 ok = ok,
-                message = if (ok) json.optString("message", "Dismissed.") else null,
-                error = if (!ok) json.optString("error", "dismiss failed") else null
+                message = if (ok) (json?.optString("message", "Dismissed.") ?: "Dismissed.") else null,
+                error = if (!ok) {
+                    json?.optString("error", null)
+                        ?: responseText.take(200).ifBlank { "HTTP $statusCode" }
+                } else null
             )
         } catch (e: Exception) {
             DraftActionResult(false, error = e.message ?: "network error")
@@ -935,18 +973,26 @@ object NovaApiClient {
             connection.outputStream.use { it.write("{}".toByteArray()); it.flush() }
             val statusCode = connection.responseCode
             val responseText = readAll(if (statusCode in 200..299) connection.inputStream else connection.errorStream)
-            val json = JSONObject(responseText.ifBlank { "{}" })
-            val ok = json.optBoolean("ok", statusCode in 200..299)
+            val httpOk = statusCode in 200..299
+            val json = parseJsonOrNull(responseText)
+            val ok = if (json != null && json.has("ok")) {
+                json.optBoolean("ok", httpOk)
+            } else {
+                httpOk
+            }
             val errors = mutableListOf<String>()
-            json.optJSONArray("errors")?.let {
+            json?.optJSONArray("errors")?.let {
                 for (i in 0 until it.length()) errors.add(it.optString(i))
             }
             DraftScanResult(
                 ok = ok,
-                draftsCreated = json.optInt("drafts_created", 0),
-                emailsChecked = json.optInt("emails_checked", 0),
+                draftsCreated = json?.optInt("drafts_created", 0) ?: 0,
+                emailsChecked = json?.optInt("emails_checked", 0) ?: 0,
                 errors = errors,
-                error = if (!ok) json.optString("error", "scan failed") else null
+                error = if (!ok) {
+                    json?.optString("error", null)
+                        ?: responseText.take(200).ifBlank { "HTTP $statusCode" }
+                } else null
             )
         } catch (e: Exception) {
             DraftScanResult(false, error = e.message ?: "network error")
