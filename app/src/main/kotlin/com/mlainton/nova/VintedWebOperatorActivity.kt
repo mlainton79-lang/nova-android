@@ -9,6 +9,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 
 /**
@@ -117,6 +118,14 @@ class VintedWebOperatorActivity : AppCompatActivity() {
                 // Don't hand off to external apps or browsers.
                 return false
             }
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                // 3B.2 plumbing test: ask the page for its title via JS,
+                // then surface what we got back to Matthew. No field fills,
+                // no automation — purely a round-trip proof.
+                runJsTitleProbe(url)
+            }
         }
 
         webView.webChromeClient = object : WebChromeClient() {
@@ -153,6 +162,52 @@ class VintedWebOperatorActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
+    /**
+     * 3B.2 — JS injection round-trip plumbing test.
+     *
+     * Asks the WebView's JS context for document.title, then surfaces
+     * the returned value via Toast. No DOM mutation, no event firing,
+     * no field interaction. Just proves the Kotlin <-> JS bridge works
+     * inside the Vinted page context.
+     *
+     * Vinted's CSP and SOP will not block this — evaluateJavascript
+     * runs in the page's isolated world but has full DOM read access
+     * by design. If document.title comes back as the real Vinted page
+     * title (e.g. "Vinted | Buy & sell..."), Phase 3B.4 form filling
+     * is unblocked.
+     *
+     * Limitations of this probe (intentional):
+     *  - Reads only, never writes.
+     *  - Single primitive (String). No JSON serialisation yet.
+     *  - Toast is dev-only output. Phase 3B.5+ will replace with
+     *    proper backend reporting.
+     */
+    private fun runJsTitleProbe(loadedUrl: String?) {
+        val js = "document.title"
+        webView.evaluateJavascript(js) { rawResult ->
+            // evaluateJavascript wraps the result as a JSON-encoded
+            // string. For a String result, that means quoted: "..."
+            // Strip the quotes for human-readable display.
+            val display = rawResult
+                ?.removeSurrounding("\"")
+                ?.takeIf { it.isNotBlank() }
+                ?: "(empty)"
+
+            Toast.makeText(
+                this,
+                "3B.2 title probe: $display",
+                Toast.LENGTH_LONG
+            ).show()
+
+            // Also log to Android system log for terminal-side
+            // verification via logcat if needed.
+            android.util.Log.i(
+                TAG_3B2,
+                "JS round-trip OK | url=$loadedUrl | title=$display"
+            )
+        }
+    }
+
     companion object {
         private const val VINTED_URL = "https://www.vinted.co.uk/"
 
@@ -163,5 +218,7 @@ class VintedWebOperatorActivity : AppCompatActivity() {
             "Mozilla/5.0 (Linux; Android 14; SM-S918B) " +
             "AppleWebKit/537.36 (KHTML, like Gecko) " +
             "Chrome/130.0.0.0 Mobile Safari/537.36"
+
+        private const val TAG_3B2 = "VintedOperator-3B2"
     }
 }
