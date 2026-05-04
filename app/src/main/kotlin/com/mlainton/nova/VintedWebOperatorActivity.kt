@@ -78,7 +78,13 @@ class VintedWebOperatorActivity : AppCompatActivity() {
             // Activity was recreated (rotation, etc.) — restore WebView state
             webView.restoreState(savedInstanceState)
         } else {
-            webView.loadUrl(VINTED_URL)
+            val launchMode = intent.getStringExtra(EXTRA_LAUNCH_MODE) ?: LAUNCH_MODE_HOME
+            val targetUrl = when (launchMode) {
+                LAUNCH_MODE_SELL -> VINTED_SELL_URL
+                else -> VINTED_URL
+            }
+            android.util.Log.i(TAG_3B2, "Launching in mode=$launchMode → $targetUrl")
+            webView.loadUrl(targetUrl)
         }
     }
 
@@ -195,7 +201,7 @@ class VintedWebOperatorActivity : AppCompatActivity() {
 
             Toast.makeText(
                 this,
-                "3B.2 title probe: $display",
+                "3B.3 title probe: $display",
                 Toast.LENGTH_LONG
             ).show()
 
@@ -210,6 +216,11 @@ class VintedWebOperatorActivity : AppCompatActivity() {
 
     companion object {
         private const val VINTED_URL = "https://www.vinted.co.uk/"
+        private const val VINTED_SELL_URL = "https://www.vinted.co.uk/items/new"
+
+        private const val EXTRA_LAUNCH_MODE = "extra_launch_mode"
+        private const val LAUNCH_MODE_HOME = "home"
+        private const val LAUNCH_MODE_SELL = "sell"
 
         // Real Chrome for Android UA string. Matches a recent stable
         // Chrome on a generic Android phone. If Vinted starts blocking,

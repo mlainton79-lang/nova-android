@@ -187,6 +187,19 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             startActivity(Intent(this, EmailDraftListActivity::class.java))
         }
 
+        // N1.vinted-3B.3 dev launcher: long-press the email drafts entry to
+        // open the Vinted WebView operator in Sell-page mode (/items/new).
+        // Long-press on Vinted drafts above stays as homepage mode (3B.1).
+        // Both are dev-only spike launchers — promoted to a real chat-driven
+        // invocation in 3B.5+.
+        drawerEmailDraftsButton.setOnLongClickListener {
+            drawerLayout.closeDrawer(GravityCompat.START)
+            val intent = Intent(this, VintedWebOperatorActivity::class.java)
+            intent.putExtra("extra_launch_mode", "sell")
+            startActivity(intent)
+            true
+        }
+
 
         plusButton.setOnClickListener { showPlusMenu(it) }
         plusButton.setOnLongClickListener { startVintedFlow(); true }
