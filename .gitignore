@@ -9,3 +9,5 @@ full/
 *.apk
 *.aab
 .acside/
+MainActivity.kt.tmp
+.claude/
