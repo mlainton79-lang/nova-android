@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/nova_surface"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Review Draft"
+            android:textColor="@color/nova_text_primary"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Tony's draft — edit, then approve to send. Or discard."
+            android:textColor="@color/nova_text_dim"
+            android:textSize="13sp"
+            android:layout_marginBottom="16dp" />
+
+        <TextView
+            android:id="@+id/emailDraftAccountPill"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:background="@color/nova_cyan_glow"
+            android:text="Sending from: …"
+            android:textColor="@color/nova_cyan"
+            android:textSize="12sp"
+            android:layout_marginBottom="12dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="12dp"
+            android:background="@color/nova_surface2"
+            android:layout_marginBottom="16dp">
+
+            <TextView
+                android:id="@+id/emailDraftReplyingTo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Replying to: …"
+                android:textColor="@color/nova_text_secondary"
+                android:textSize="13sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="6dp"
+                android:text="Original subject"
+                android:textColor="@color/nova_text_dim"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/emailDraftReplyingSubject"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="2dp"
+                android:text="…"
+                android:textColor="@color/nova_text_primary"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/emailDraftReasoningToggle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
+            android:text="▸ Tony's reasoning"
+            android:textColor="@color/nova_cyan"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/emailDraftReasoningText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="10dp"
+            android:background="@color/nova_surface3"
+            android:text="…"
+            android:textColor="@color/nova_text_secondary"
+            android:textSize="13sp"
+            android:layout_marginBottom="12dp"
+            android:visibility="gone" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Subject"
+            android:textColor="@color/nova_text_dim"
+            android:textSize="13sp"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="4dp" />
+
+        <EditText
+            android:id="@+id/emailDraftSubjectEdit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/nova_text_primary"
+            android:textSize="15sp"
+            android:inputType="text"
+            android:layout_marginBottom="12dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Body"
+            android:textColor="@color/nova_text_dim"
+            android:textSize="13sp"
+            android:layout_marginBottom="4dp" />
+
+        <EditText
+            android:id="@+id/emailDraftBodyEdit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="280dp"
+            android:gravity="top|start"
+            android:textColor="@color/nova_text_primary"
+            android:textSize="15sp"
+            android:inputType="textMultiLine|textCapSentences"
+            android:layout_marginBottom="20dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="8dp">
+
+            <Button
+                android:id="@+id/emailDraftDiscardButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="6dp"
+                android:text="Discard"
+                android:textAllCaps="false" />
+
+            <Button
+                android:id="@+id/emailDraftApproveButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="2"
+                android:layout_marginStart="6dp"
+                android:text="Approve &amp; Send"
+                android:textAllCaps="false" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

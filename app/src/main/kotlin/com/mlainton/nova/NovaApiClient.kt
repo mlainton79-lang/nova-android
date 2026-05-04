@@ -775,4 +775,181 @@ object NovaApiClient {
             sb.toString()
         }
     }
+
+    // =========================================================================
+    // N1.email-draft-B: Email drafts UI surface.
+    // Wraps the v1 backend (commits 4ec826c + 64dc2aa + ab3317b) so Matthew
+    // can list, send (with optional edits), dismiss, and trigger autonomous
+    // scans of pending email drafts from the Android app.
+    // =========================================================================
+
+    data class EmailDraft(
+        val id: Int,
+        val account: String,
+        val from: String,
+        val originalSubject: String,
+        val draftTo: String,
+        val draftSubject: String,
+        val draftBody: String,
+        val reasoning: String,
+        val status: String,
+        val createdAt: String
+    )
+
+    data class DraftListResult(
+        val ok: Boolean,
+        val drafts: List<EmailDraft>,
+        val error: String? = null
+    )
+
+    data class DraftActionResult(
+        val ok: Boolean,
+        val message: String? = null,
+        val error: String? = null
+    )
+
+    data class DraftScanResult(
+        val ok: Boolean,
+        val draftsCreated: Int = 0,
+        val emailsChecked: Int = 0,
+        val errors: List<String> = emptyList(),
+        val error: String? = null
+    )
+
+    fun listEmailDrafts(): DraftListResult {
+        return try {
+            val url = URL("$BASE_URL/api/v1/drafts")
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 30000
+                readTimeout = 30000
+                instanceFollowRedirects = true
+                setRequestProperty("Authorization", "Bearer $DEV_TOKEN")
+                setRequestProperty("Accept", "application/json")
+            }
+            val statusCode = connection.responseCode
+            val responseText = readAll(if (statusCode in 200..299) connection.inputStream else connection.errorStream)
+            if (statusCode !in 200..299) {
+                return DraftListResult(false, emptyList(), "HTTP $statusCode")
+            }
+            val json = JSONObject(responseText.ifBlank { "{}" })
+            val arr = json.optJSONArray("drafts") ?: JSONArray()
+            val drafts = mutableListOf<EmailDraft>()
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                drafts.add(
+                    EmailDraft(
+                        id = o.optInt("id", 0),
+                        account = o.optString("account", ""),
+                        from = o.optString("from", ""),
+                        originalSubject = o.optString("original_subject", ""),
+                        draftTo = o.optString("draft_to", ""),
+                        draftSubject = o.optString("draft_subject", ""),
+                        draftBody = o.optString("draft_body", ""),
+                        reasoning = o.optString("reasoning", ""),
+                        status = o.optString("status", "pending"),
+                        createdAt = o.optString("created_at", "")
+                    )
+                )
+            }
+            DraftListResult(json.optBoolean("ok", true), drafts)
+        } catch (e: Exception) {
+            DraftListResult(false, emptyList(), e.message ?: "network error")
+        }
+    }
+
+    fun sendEmailDraft(draftId: Int, finalSubject: String?, finalBody: String?): DraftActionResult {
+        return try {
+            val url = URL("$BASE_URL/api/v1/drafts/$draftId/send")
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 60000
+                readTimeout = 60000
+                doOutput = true
+                instanceFollowRedirects = true
+                setRequestProperty("Authorization", "Bearer $DEV_TOKEN")
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Accept", "application/json")
+            }
+            // Body: include only non-null overrides. Backend treats absent
+            // fields as "use stored draft fields" (trust anchors locked DB-side).
+            val body = JSONObject()
+            if (finalSubject != null) body.put("final_subject", finalSubject)
+            if (finalBody != null) body.put("final_body", finalBody)
+            connection.outputStream.use { it.write(body.toString().toByteArray()); it.flush() }
+            val statusCode = connection.responseCode
+            val responseText = readAll(if (statusCode in 200..299) connection.inputStream else connection.errorStream)
+            val json = JSONObject(responseText.ifBlank { "{}" })
+            val ok = json.optBoolean("ok", statusCode in 200..299)
+            DraftActionResult(
+                ok = ok,
+                message = if (ok) json.optString("message", "Sent.") else null,
+                error = if (!ok) json.optString("error", "send failed") else null
+            )
+        } catch (e: Exception) {
+            DraftActionResult(false, error = e.message ?: "network error")
+        }
+    }
+
+    fun dismissEmailDraft(draftId: Int): DraftActionResult {
+        return try {
+            val url = URL("$BASE_URL/api/v1/drafts/$draftId/dismiss")
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 30000
+                readTimeout = 30000
+                doOutput = true
+                instanceFollowRedirects = true
+                setRequestProperty("Authorization", "Bearer $DEV_TOKEN")
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Accept", "application/json")
+            }
+            connection.outputStream.use { it.write("{}".toByteArray()); it.flush() }
+            val statusCode = connection.responseCode
+            val responseText = readAll(if (statusCode in 200..299) connection.inputStream else connection.errorStream)
+            val json = JSONObject(responseText.ifBlank { "{}" })
+            val ok = json.optBoolean("ok", statusCode in 200..299)
+            DraftActionResult(
+                ok = ok,
+                message = if (ok) json.optString("message", "Dismissed.") else null,
+                error = if (!ok) json.optString("error", "dismiss failed") else null
+            )
+        } catch (e: Exception) {
+            DraftActionResult(false, error = e.message ?: "network error")
+        }
+    }
+
+    fun scanInboxForDrafts(): DraftScanResult {
+        return try {
+            val url = URL("$BASE_URL/api/v1/drafts/scan")
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 90000
+                readTimeout = 90000
+                doOutput = true
+                instanceFollowRedirects = true
+                setRequestProperty("Authorization", "Bearer $DEV_TOKEN")
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Accept", "application/json")
+            }
+            connection.outputStream.use { it.write("{}".toByteArray()); it.flush() }
+            val statusCode = connection.responseCode
+            val responseText = readAll(if (statusCode in 200..299) connection.inputStream else connection.errorStream)
+            val json = JSONObject(responseText.ifBlank { "{}" })
+            val ok = json.optBoolean("ok", statusCode in 200..299)
+            val errors = mutableListOf<String>()
+            json.optJSONArray("errors")?.let {
+                for (i in 0 until it.length()) errors.add(it.optString(i))
+            }
+            DraftScanResult(
+                ok = ok,
+                draftsCreated = json.optInt("drafts_created", 0),
+                emailsChecked = json.optInt("emails_checked", 0),
+                errors = errors,
+                error = if (!ok) json.optString("error", "scan failed") else null
+            )
+        } catch (e: Exception) {
+            DraftScanResult(false, error = e.message ?: "network error")
+        }
+    }
 }

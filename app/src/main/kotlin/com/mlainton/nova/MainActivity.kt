@@ -67,6 +67,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var drawerNewChatButton: Button
     private lateinit var drawerSyncCodebaseButton: Button
     private lateinit var drawerVintedDraftsButton: Button
+    private lateinit var drawerEmailDraftsButton: Button
 
     private var tts: TextToSpeech? = null
     private var ttsReady = false
@@ -120,6 +121,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         drawerNewChatButton = findViewById(R.id.drawerNewChatButton)
         drawerSyncCodebaseButton = findViewById(R.id.drawerSyncCodebaseButton)
         drawerVintedDraftsButton = findViewById(R.id.drawerVintedDraftsButton)
+        drawerEmailDraftsButton = findViewById(R.id.drawerEmailDraftsButton)
 
         currentBrainMode = BrokerPrefs.getBrainMode(this)
         renderBrainMode()
@@ -167,6 +169,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         drawerVintedDraftsButton.setOnClickListener {
             drawerLayout.closeDrawer(GravityCompat.START)
             startActivity(Intent(this, VintedDraftListActivity::class.java))
+        }
+
+        drawerEmailDraftsButton.setOnClickListener {
+            drawerLayout.closeDrawer(GravityCompat.START)
+            startActivity(Intent(this, EmailDraftListActivity::class.java))
         }
 
 

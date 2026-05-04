@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/nova_surface"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/emailDraftListTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingBottom="4dp"
+        android:text="Email Drafts"
+        android:textColor="@color/nova_text_primary"
+        android:textSize="28sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingBottom="12dp"
+        android:text="Tony's prepared replies. Review, edit, send — or dismiss."
+        android:textColor="@color/nova_text_dim"
+        android:textSize="13sp" />
+
+    <Button
+        android:id="@+id/emailDraftScanButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        android:text="Scan inbox now"
+        android:textAllCaps="false" />
+
+    <TextView
+        android:id="@+id/emailDraftListEmpty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingBottom="12dp"
+        android:text="No drafts yet."
+        android:textColor="@color/nova_text_secondary"
+        android:textSize="14sp"
+        android:visibility="gone" />
+
+    <ListView
+        android:id="@+id/emailDraftListView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:dividerHeight="12dp" />
+
+</LinearLayout>

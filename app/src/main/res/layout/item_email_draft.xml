@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="@color/nova_surface2">
+
+    <TextView
+        android:id="@+id/emailDraftItemSender"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Sender"
+        android:textColor="@color/nova_text_primary"
+        android:textSize="16sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/emailDraftItemSubject"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingTop="4dp"
+        android:text="Draft subject"
+        android:textColor="@color/nova_text_primary"
+        android:textSize="14sp"
+        android:maxLines="1"
+        android:ellipsize="end" />
+
+    <TextView
+        android:id="@+id/emailDraftItemMeta"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingTop="6dp"
+        android:text="account · time"
+        android:textColor="@color/nova_text_dim"
+        android:textSize="12sp" />
+
+</LinearLayout>
