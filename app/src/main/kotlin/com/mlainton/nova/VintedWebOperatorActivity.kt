@@ -90,9 +90,23 @@ class VintedWebOperatorActivity : AppCompatActivity() {
             setMargins(margin, margin, margin, margin)
         }
 
+        val fillTitleButton = Button(this).apply {
+            text = "Fill Title"
+            setOnClickListener { fillTitleTest() }
+        }
+        val fillTitleButtonParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.START
+            val margin = (16 * resources.displayMetrics.density).toInt()
+            setMargins(margin, margin, margin, margin)
+        }
+
         root.addView(webView)
         root.addView(progressBar)
         root.addView(inspectButton, inspectButtonParams)
+        root.addView(fillTitleButton, fillTitleButtonParams)
         setContentView(root)
 
         configureWebView()
@@ -259,7 +273,7 @@ class VintedWebOperatorActivity : AppCompatActivity() {
      * in 3B.5+.
      *
      * No DOM mutation. The inspector JS is verified by Phase 3 safety
-     * greps to contain no .click(/.submit(/.value=/dispatchEvent calls.
+     * greps to contain no click, submit, value-assign, or dispatchEvent calls.
      */
     private fun runDomInspector() {
         val inspectorJs = try {
@@ -365,6 +379,312 @@ class VintedWebOperatorActivity : AppCompatActivity() {
             .show()
     }
 
+    /**
+     * 3B.5 — First write-mode fill: Title only.
+     *
+     * Resolves the Title input from a list of selector candidates that
+     * 3B.4.1 confirmed unique on /items/new. Uses the React-aware native
+     * setter trick (Object.getOwnPropertyDescriptor on
+     * HTMLInputElement.prototype 'value' setter) to write the value past
+     * React's controlled-input shadow state, then dispatches input/change/
+     * blur events so React picks up the change. After 300ms — long enough
+     * for React's next render cycle — we run a separate JS to read the
+     * value back. If it survives, React accepted our write.
+     *
+     * NEVER clicks any button. The write is the only action this method
+     * takes against the page.
+     *
+     * Hardcoded test value: "Hollister hoodie M camo". Plausible to
+     * Vinted's content moderation, identifiable to Matthew, no synthetic
+     * markers. Manual cleanup via WebView UI after test.
+     *
+     * Failure modes (all return early without retry):
+     *  - selector_not_found: no candidate matched a unique element
+     *  - identity_mismatch: resolved element didn't match title field
+     *  - not_writable: element was disabled/readonly when checked
+     *  - native_setter_missing: prototype descriptor lookup returned null
+     *  - page_guard_failed: not on /items/new or title doesn't say sell
+     *  - react_wiped_value: value vanished within 300ms
+     */
+    private fun fillTitleTest() {
+        val testValue = "Hollister hoodie M camo"
+
+        val fillJs = """
+            (function() {
+              'use strict';
+
+              // Page guard — refuse to fill on the wrong page.
+              var url = location.href.toLowerCase();
+              var pageTitle = (document.title || '').toLowerCase();
+              if (url.indexOf('/items/new') === -1 || pageTitle.indexOf('sell') === -1) {
+                return JSON.stringify({
+                  ok: false,
+                  error: 'page_guard_failed',
+                  url: location.href,
+                  title: document.title
+                });
+              }
+
+              // Selector candidates from 3B.4.1 inspector, priority order.
+              var selectors = [
+                '[data-testid="title--input"]',
+                'input[name="title"]',
+                'input[placeholder="Tell buyers what you\u0027re selling"]',
+                '#title',
+                'input#title'
+              ];
+
+              // Resolver: first selector that uniquely matches a visible,
+              // writable input/textarea wins.
+              var resolved = null;
+              var resolvedSelector = null;
+              for (var i = 0; i < selectors.length; i++) {
+                var sel = selectors[i];
+                var matches;
+                try {
+                  matches = document.querySelectorAll(sel);
+                } catch (e) {
+                  continue;
+                }
+                if (matches.length !== 1) continue;
+                var el = matches[0];
+                // Visibility check (basic — same shape as inspector).
+                var rect = el.getBoundingClientRect();
+                if (rect.width === 0 || rect.height === 0) continue;
+                // Writability check.
+                if (el.disabled === true) continue;
+                if (el.readOnly === true) continue;
+                // Tag check — must be input or textarea.
+                var tag = el.tagName.toLowerCase();
+                if (tag !== 'input' && tag !== 'textarea') continue;
+                resolved = el;
+                resolvedSelector = sel;
+                break;
+              }
+
+              if (!resolved) {
+                return JSON.stringify({ ok: false, error: 'selector_not_found' });
+              }
+
+              // Identity guard — must actually be the title field, not a
+              // resolver fallback that grabbed the wrong element.
+              var dt = resolved.getAttribute('data-testid') || '';
+              var name = resolved.getAttribute('name') || '';
+              var id = resolved.id || '';
+              var isTitle = (dt === 'title--input') || (name === 'title') || (id === 'title');
+              if (!isTitle) {
+                return JSON.stringify({
+                  ok: false,
+                  error: 'identity_mismatch',
+                  dataTestId: dt,
+                  name: name,
+                  id: id
+                });
+              }
+
+              // Native setter trick — bypass React's controlled-input shadow
+              // state by calling the prototype's value setter directly.
+              var proto = (resolved instanceof HTMLTextAreaElement)
+                ? window.HTMLTextAreaElement.prototype
+                : window.HTMLInputElement.prototype;
+              var descriptor = Object.getOwnPropertyDescriptor(proto, 'value');
+              if (!descriptor || !descriptor.set) {
+                return JSON.stringify({ ok: false, error: 'native_setter_missing' });
+              }
+
+              var testValue = ${jsString(testValue)};
+              descriptor.set.call(resolved, testValue);
+
+              // Dispatch the events React listens for.
+              resolved.dispatchEvent(new Event('input', { bubbles: true }));
+              resolved.dispatchEvent(new Event('change', { bubbles: true }));
+              resolved.dispatchEvent(new Event('blur', { bubbles: true }));
+
+              // Read back immediately — first proof the write happened.
+              // Verification of survival happens in a separate evaluateJavascript
+              // call from Kotlin after 300ms.
+              return JSON.stringify({
+                ok: true,
+                selector: resolvedSelector,
+                tag: resolved.tagName.toLowerCase(),
+                valueAfterWrite: resolved.value,
+                valueLengthAfterWrite: resolved.value.length,
+                testValue: testValue
+              });
+            })();
+        """.trimIndent()
+
+        Toast.makeText(this, "3B.5 fill running…", Toast.LENGTH_SHORT).show()
+
+        webView.evaluateJavascript(fillJs) { rawResult ->
+            val unwrapped = decodeEvaluateResult(rawResult)
+            if (unwrapped == null) {
+                Toast.makeText(
+                    this,
+                    "3B.5 fill: no JSON returned (check logcat)",
+                    Toast.LENGTH_LONG
+                ).show()
+                android.util.Log.w(TAG_3B5, "fill JS returned null. raw=$rawResult")
+                return@evaluateJavascript
+            }
+
+            // Parse the immediate fill result.
+            val fillResult = try {
+                org.json.JSONObject(unwrapped)
+            } catch (e: Exception) {
+                android.util.Log.e(TAG_3B5, "fill result not parseable as JSON", e)
+                Toast.makeText(this, "3B.5 fill: bad JSON (check logcat)", Toast.LENGTH_LONG).show()
+                return@evaluateJavascript
+            }
+
+            val ok = fillResult.optBoolean("ok", false)
+            if (!ok) {
+                val error = fillResult.optString("error", "unknown_error")
+                Toast.makeText(this, "3B.5 fill failed: $error", Toast.LENGTH_LONG).show()
+                android.util.Log.w(TAG_3B5, "fill failed: $unwrapped")
+                saveTitleFillResult(fillResult, verifyResult = null)
+                return@evaluateJavascript
+            }
+
+            // Immediate write succeeded. Now schedule the 300ms verify.
+            val resolvedSelector = fillResult.optString("selector", "")
+            android.util.Log.i(
+                TAG_3B5,
+                "fill ok | selector=$resolvedSelector | valueLen=${fillResult.optInt("valueLengthAfterWrite", -1)}"
+            )
+
+            webView.postDelayed({
+                verifyTitleFill(resolvedSelector, testValue, fillResult)
+            }, 300L)
+        }
+    }
+
+    /**
+     * 3B.5 verify pass — runs 300ms after fill. Reads the title value back
+     * via a separate evaluateJavascript and compares to testValue. If
+     * React preserved the write, Toast confirms. Otherwise reports
+     * react_wiped_value.
+     */
+    private fun verifyTitleFill(
+        resolvedSelector: String,
+        testValue: String,
+        fillResult: org.json.JSONObject
+    ) {
+        if (resolvedSelector.isBlank()) {
+            Toast.makeText(this, "3B.5 verify: missing selector", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val verifyJs = """
+            (function() {
+              var sel = ${jsString(resolvedSelector)};
+              var el = document.querySelector(sel);
+              if (!el) {
+                return JSON.stringify({ ok: false, error: 'verify_selector_lost' });
+              }
+              return JSON.stringify({
+                ok: true,
+                value: el.value,
+                valueLength: el.value.length
+              });
+            })();
+        """.trimIndent()
+
+        webView.evaluateJavascript(verifyJs) { rawVerify ->
+            val unwrapped = decodeEvaluateResult(rawVerify)
+            val verifyResult = try {
+                if (unwrapped == null) null else org.json.JSONObject(unwrapped)
+            } catch (e: Exception) {
+                android.util.Log.e(TAG_3B5, "verify result not parseable", e)
+                null
+            }
+
+            if (verifyResult == null) {
+                Toast.makeText(this, "3B.5 verify: bad JSON", Toast.LENGTH_LONG).show()
+                saveTitleFillResult(fillResult, verifyResult = null)
+                return@evaluateJavascript
+            }
+
+            val verifyOk = verifyResult.optBoolean("ok", false)
+            if (!verifyOk) {
+                val verifyError = verifyResult.optString("error", "unknown")
+                Toast.makeText(this, "3B.5 verify failed: $verifyError", Toast.LENGTH_LONG).show()
+                saveTitleFillResult(fillResult, verifyResult)
+                return@evaluateJavascript
+            }
+
+            val currentValue = verifyResult.optString("value", "")
+            val survived = currentValue == testValue
+
+            if (survived) {
+                Toast.makeText(
+                    this,
+                    "3B.5 PASS: Title filled and verified",
+                    Toast.LENGTH_LONG
+                ).show()
+                android.util.Log.i(TAG_3B5, "verify ok, value preserved: '$currentValue'")
+            } else {
+                Toast.makeText(
+                    this,
+                    "3B.5 FAIL: react_wiped_value",
+                    Toast.LENGTH_LONG
+                ).show()
+                android.util.Log.w(
+                    TAG_3B5,
+                    "react wiped. expected='$testValue', actual='$currentValue'"
+                )
+            }
+
+            saveTitleFillResult(fillResult, verifyResult)
+        }
+    }
+
+    /**
+     * Persist the combined fill+verify result to filesDir for later
+     * inspection. Optional but useful for post-mortem when something
+     * goes weird.
+     */
+    private fun saveTitleFillResult(
+        fillResult: org.json.JSONObject,
+        verifyResult: org.json.JSONObject?
+    ) {
+        try {
+            val combined = org.json.JSONObject().apply {
+                put("phase", "3B.5")
+                put("timestamp", java.text.SimpleDateFormat(
+                    "yyyy-MM-dd'T'HH:mm:ss'Z'",
+                    java.util.Locale.UK
+                ).apply {
+                    timeZone = java.util.TimeZone.getTimeZone("UTC")
+                }.format(java.util.Date()))
+                put("fill", fillResult)
+                if (verifyResult != null) put("verify", verifyResult)
+            }
+            val dir = java.io.File(filesDir, "vinted_operator")
+            if (!dir.exists()) dir.mkdirs()
+            val file = java.io.File(dir, "last_title_fill_result.json")
+            file.writeText(combined.toString(2))
+            android.util.Log.i(TAG_3B5, "saved fill result: ${file.absolutePath}")
+        } catch (e: Exception) {
+            android.util.Log.w(TAG_3B5, "saveTitleFillResult failed", e)
+        }
+    }
+
+    /**
+     * 3B.5 helper — escape a Kotlin string for safe interpolation as a JS
+     * string literal. Wraps in double quotes, escapes backslashes, double
+     * quotes, and newlines. Used for testValue and resolvedSelector
+     * interpolation into the fill/verify JS sources.
+     */
+    private fun jsString(value: String): String {
+        val escaped = value
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+        return "\"" + escaped + "\""
+    }
+
     companion object {
         private const val VINTED_URL = "https://www.vinted.co.uk/"
         private const val VINTED_SELL_URL = "https://www.vinted.co.uk/items/new"
@@ -383,5 +703,6 @@ class VintedWebOperatorActivity : AppCompatActivity() {
 
         private const val TAG_3B2 = "VintedOperator-3B2"
         private const val TAG_3B4 = "VintedOperator-3B4"
+        private const val TAG_3B5 = "VintedOperator-3B5"
     }
 }
