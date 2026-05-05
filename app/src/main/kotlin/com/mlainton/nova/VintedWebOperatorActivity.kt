@@ -1,16 +1,26 @@
 package com.mlainton.nova
 
+import android.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.os.Bundle
+import android.view.Gravity
 import android.view.View
+import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.LinearLayout
+import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.ProgressBar
+import android.widget.ScrollView
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import java.io.File
 
 /**
  * VintedWebOperatorActivity — Phase 3B.1.
@@ -40,36 +50,49 @@ class VintedWebOperatorActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Build the layout programmatically — no XML needed for 3B.1.
-        // A vertical LinearLayout with a ProgressBar on top, WebView below.
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.MATCH_PARENT
+        // Build the layout programmatically — no XML needed.
+        // 3B.4: switched root from LinearLayout (stacks) to FrameLayout
+        // (overlays) so the Inspect button can sit on top of the WebView
+        // bottom-right without taking layout space from it. WebView fills
+        // the frame; ProgressBar sits at the top edge; Inspect button at
+        // the bottom-right corner.
+        val root = FrameLayout(this)
+
+        webView = WebView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
             )
         }
 
         progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.TOP
+            }
             max = 100
             progress = 0
             visibility = View.GONE
         }
 
-        webView = WebView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                0,
-                1f
-            )
+        val inspectButton = Button(this).apply {
+            text = "Inspect"
+            setOnClickListener { runDomInspector() }
+        }
+        val inspectButtonParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.END
+            val margin = (16 * resources.displayMetrics.density).toInt()
+            setMargins(margin, margin, margin, margin)
         }
 
-        root.addView(progressBar)
         root.addView(webView)
+        root.addView(progressBar)
+        root.addView(inspectButton, inspectButtonParams)
         setContentView(root)
 
         configureWebView()
@@ -143,6 +166,18 @@ class VintedWebOperatorActivity : AppCompatActivity() {
                     View.GONE
                 }
             }
+
+            override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
+                // 3B.4: surface JS console.log/warn/error for the
+                // inspector and any future JS that needs visible logs.
+                android.util.Log.d(
+                    "VintedOperator-JS",
+                    "[${consoleMessage.messageLevel()}] " +
+                        "${consoleMessage.sourceId()}:${consoleMessage.lineNumber()} " +
+                        "${consoleMessage.message()}"
+                )
+                return true
+            }
         }
     }
 
@@ -214,6 +249,122 @@ class VintedWebOperatorActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * 3B.4 — Read-only DOM inspector for the Vinted Sell form.
+     *
+     * Loads the inspector JS from app assets, runs it inside the WebView's
+     * JS context, parses the JSON-encoded return value, persists it to
+     * app private storage, and presents a scrollable AlertDialog with a
+     * Copy button so Matthew can extract the snapshot for selector design
+     * in 3B.5+.
+     *
+     * No DOM mutation. The inspector JS is verified by Phase 3 safety
+     * greps to contain no .click(/.submit(/.value=/dispatchEvent calls.
+     */
+    private fun runDomInspector() {
+        val inspectorJs = try {
+            assets.open("vinted_dom_inspector.js").bufferedReader().use { it.readText() }
+        } catch (e: Exception) {
+            android.util.Log.e(TAG_3B4, "Failed to load inspector asset", e)
+            Toast.makeText(this, "Inspector asset load failed: ${e.message}", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        Toast.makeText(this, "3B.4 inspector running…", Toast.LENGTH_SHORT).show()
+
+        webView.evaluateJavascript(inspectorJs) { rawResult ->
+            // evaluateJavascript wraps the return as a JSON string. Our JS
+            // returns JSON.stringify(payload), so rawResult is a JSON-encoded
+            // JSON string — i.e. JSON.parse it once to unwrap to the actual
+            // JSON text, then a second time would parse to an object. We
+            // pretty-print the unwrapped JSON text directly.
+            val unwrapped = decodeEvaluateResult(rawResult)
+            if (unwrapped == null) {
+                Toast.makeText(this, "Inspector returned null — check page guard", Toast.LENGTH_LONG).show()
+                android.util.Log.w(TAG_3B4, "Inspector raw=$rawResult")
+                return@evaluateJavascript
+            }
+
+            // Pretty-print for human reading
+            val pretty = prettyPrintJson(unwrapped)
+
+            // Save to file
+            val savedPath = saveInspectionJson(pretty)
+
+            // Extract field count for Toast (best-effort regex, no full parse)
+            val fieldCount = Regex("\"fields\"\\s*:\\s*(\\d+)").find(pretty)?.groupValues?.get(1)
+                ?: Regex("\"fields\"\\s*:\\s*\\[([^\\]]*)").find(pretty)?.let {
+                    it.groupValues[1].split(",\"").size.toString()
+                }
+                ?: "?"
+
+            Toast.makeText(this, "3B.4 captured fields=$fieldCount", Toast.LENGTH_LONG).show()
+            android.util.Log.i(TAG_3B4, "Inspection saved to $savedPath, ${pretty.length} chars")
+
+            showInspectorDialog(pretty)
+        }
+    }
+
+    /**
+     * Strip the outer JSON-string wrapping that evaluateJavascript adds.
+     * Our JS returns JSON.stringify(payload), so the raw result is the
+     * JSON string with all internal quotes escaped. We decode the outer
+     * JSON-string layer to get the real JSON text.
+     */
+    private fun decodeEvaluateResult(raw: String?): String? {
+        if (raw.isNullOrBlank() || raw == "null") return null
+        return try {
+            // raw looks like: "{\"phase\":\"3B.4\",...}"
+            // After parsing the outer JSON string, we get: {"phase":"3B.4",...}
+            org.json.JSONTokener(raw).nextValue() as? String
+        } catch (e: Exception) {
+            android.util.Log.e(TAG_3B4, "decodeEvaluateResult failed", e)
+            null
+        }
+    }
+
+    private fun prettyPrintJson(jsonText: String): String {
+        return try {
+            val obj = org.json.JSONObject(jsonText)
+            obj.toString(2)
+        } catch (e: Exception) {
+            android.util.Log.w(TAG_3B4, "prettyPrintJson fallback to raw", e)
+            jsonText
+        }
+    }
+
+    private fun saveInspectionJson(jsonText: String): String {
+        val dir = File(filesDir, "vinted_operator")
+        if (!dir.exists()) dir.mkdirs()
+        val file = File(dir, "last_dom_inspection.json")
+        file.writeText(jsonText)
+        return file.absolutePath
+    }
+
+    private fun showInspectorDialog(jsonText: String) {
+        val scroll = ScrollView(this)
+        val tv = TextView(this).apply {
+            text = jsonText
+            setPadding(32, 32, 32, 32)
+            setTextIsSelectable(true)
+            textSize = 11f
+            typeface = android.graphics.Typeface.MONOSPACE
+        }
+        scroll.addView(tv)
+
+        AlertDialog.Builder(this)
+            .setTitle("3B.4 DOM inspector")
+            .setView(scroll)
+            .setPositiveButton("Copy") { _, _ ->
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("vinted_dom_inspection", jsonText)
+                clipboard.setPrimaryClip(clip)
+                Toast.makeText(this, "Copied ${jsonText.length} chars", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
     companion object {
         private const val VINTED_URL = "https://www.vinted.co.uk/"
         private const val VINTED_SELL_URL = "https://www.vinted.co.uk/items/new"
@@ -231,5 +382,6 @@ class VintedWebOperatorActivity : AppCompatActivity() {
             "Chrome/130.0.0.0 Mobile Safari/537.36"
 
         private const val TAG_3B2 = "VintedOperator-3B2"
+        private const val TAG_3B4 = "VintedOperator-3B4"
     }
 }
