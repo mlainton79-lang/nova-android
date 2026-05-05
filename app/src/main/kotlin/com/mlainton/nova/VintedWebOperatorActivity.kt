@@ -103,10 +103,24 @@ class VintedWebOperatorActivity : AppCompatActivity() {
             setMargins(margin, margin, margin, margin)
         }
 
+        val fillDescButton = Button(this).apply {
+            text = "Fill Desc"
+            setOnClickListener { fillDescriptionTest() }
+        }
+        val fillDescButtonParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            val margin = (16 * resources.displayMetrics.density).toInt()
+            setMargins(margin, margin, margin, margin)
+        }
+
         root.addView(webView)
         root.addView(progressBar)
         root.addView(inspectButton, inspectButtonParams)
         root.addView(fillTitleButton, fillTitleButtonParams)
+        root.addView(fillDescButton, fillDescButtonParams)
         setContentView(root)
 
         configureWebView()
@@ -685,6 +699,314 @@ class VintedWebOperatorActivity : AppCompatActivity() {
         return "\"" + escaped + "\""
     }
 
+    /**
+     * 3B.6 — Second write-mode fill: Description only.
+     *
+     * Mirrors 3B.5's fillTitleTest pattern. Resolves the Description
+     * textarea from candidates that 3B.4.1 confirmed unique on /items/new.
+     * Native setter trick via HTMLTextAreaElement.prototype 'value' setter,
+     * dispatch input/change/blur, then two-stage Kotlin-side verification:
+     * first at 300ms, fallback at 700ms total if first reports
+     * react_wiped_value.
+     *
+     * NEVER clicks any button. The write is the only action this method
+     * takes against the page.
+     *
+     * Test value: a plausible listing description for the Hollister hoodie
+     * referenced by 3B.5's title. Same item, fields constructed in tandem
+     * for visual sanity-check during manual review.
+     *
+     * Failure modes (all return early without retry):
+     *  - selector_not_found: no candidate matched a unique element
+     *  - identity_mismatch: resolved element didn't match description field
+     *  - not_writable: textarea was disabled or readonly when checked
+     *  - native_setter_missing: HTMLTextAreaElement.prototype 'value' missing
+     *  - page_guard_failed: not on /items/new or title doesn't say sell
+     *  - react_wiped_value: value vanished within 700ms (fallback verify)
+     *  - verify_selector_lost: textarea disappeared between fill and verify
+     *  - bad JSON: result wasn't parseable
+     */
+    private fun fillDescriptionTest() {
+        val testValue = "Hollister hoodie size M, camo print, worn a few times, no marks, smoke-free home. Open to offers."
+
+        val fillJs = """
+            (function() {
+              'use strict';
+
+              // Page guard — refuse to fill on the wrong page.
+              var url = location.href.toLowerCase();
+              var pageTitle = (document.title || '').toLowerCase();
+              if (url.indexOf('/items/new') === -1 || pageTitle.indexOf('sell') === -1) {
+                return JSON.stringify({
+                  ok: false,
+                  error: 'page_guard_failed',
+                  url: location.href,
+                  title: document.title
+                });
+              }
+
+              // Selector candidates from 3B.4.1 inspector, priority order.
+              var selectors = [
+                '[data-testid="description--input"]',
+                'textarea[name="description"]',
+                'textarea[placeholder="Tell buyers more about it"]',
+                '#description',
+                'textarea#description'
+              ];
+
+              // Resolver: first selector that uniquely matches a visible,
+              // writable textarea wins.
+              var resolved = null;
+              var resolvedSelector = null;
+              for (var i = 0; i < selectors.length; i++) {
+                var sel = selectors[i];
+                var matches;
+                try {
+                  matches = document.querySelectorAll(sel);
+                } catch (e) {
+                  continue;
+                }
+                if (matches.length !== 1) continue;
+                var el = matches[0];
+                var rect = el.getBoundingClientRect();
+                if (rect.width === 0 || rect.height === 0) continue;
+                if (el.disabled === true) continue;
+                if (el.readOnly === true) continue;
+                // Tag check — must be textarea for description.
+                var tag = el.tagName.toLowerCase();
+                if (tag !== 'textarea') continue;
+                resolved = el;
+                resolvedSelector = sel;
+                break;
+              }
+
+              if (!resolved) {
+                return JSON.stringify({ ok: false, error: 'selector_not_found' });
+              }
+
+              // Identity guard — must actually be the description field.
+              var dt = resolved.getAttribute('data-testid') || '';
+              var name = resolved.getAttribute('name') || '';
+              var id = resolved.id || '';
+              var isDescription = (dt === 'description--input') || (name === 'description') || (id === 'description');
+              if (!isDescription) {
+                return JSON.stringify({
+                  ok: false,
+                  error: 'identity_mismatch',
+                  dataTestId: dt,
+                  name: name,
+                  id: id
+                });
+              }
+
+              // Native setter trick — HTMLTextAreaElement prototype, no
+              // input branch needed since description is always textarea.
+              var proto = window.HTMLTextAreaElement.prototype;
+              var descriptor = Object.getOwnPropertyDescriptor(proto, 'value');
+              if (!descriptor || !descriptor.set) {
+                return JSON.stringify({ ok: false, error: 'native_setter_missing' });
+              }
+
+              var testValue = ${jsString(testValue)};
+              descriptor.set.call(resolved, testValue);
+
+              // Dispatch the events React listens for.
+              resolved.dispatchEvent(new Event('input', { bubbles: true }));
+              resolved.dispatchEvent(new Event('change', { bubbles: true }));
+              resolved.dispatchEvent(new Event('blur', { bubbles: true }));
+
+              return JSON.stringify({
+                ok: true,
+                selector: resolvedSelector,
+                tag: resolved.tagName.toLowerCase(),
+                valueAfterWrite: resolved.value,
+                valueLengthAfterWrite: resolved.value.length,
+                testValue: testValue
+              });
+            })();
+        """.trimIndent()
+
+        Toast.makeText(this, "3B.6 fill running…", Toast.LENGTH_SHORT).show()
+
+        webView.evaluateJavascript(fillJs) { rawResult ->
+            val unwrapped = decodeEvaluateResult(rawResult)
+            if (unwrapped == null) {
+                Toast.makeText(
+                    this,
+                    "3B.6 fill: no JSON returned (check logcat)",
+                    Toast.LENGTH_LONG
+                ).show()
+                android.util.Log.w(TAG_3B6, "fill JS returned null. raw=$rawResult")
+                return@evaluateJavascript
+            }
+
+            val fillResult = try {
+                org.json.JSONObject(unwrapped)
+            } catch (e: Exception) {
+                android.util.Log.e(TAG_3B6, "fill result not parseable as JSON", e)
+                Toast.makeText(this, "3B.6 fill: bad JSON (check logcat)", Toast.LENGTH_LONG).show()
+                return@evaluateJavascript
+            }
+
+            val ok = fillResult.optBoolean("ok", false)
+            if (!ok) {
+                val error = fillResult.optString("error", "unknown_error")
+                Toast.makeText(this, "3B.6 fill failed: $error", Toast.LENGTH_LONG).show()
+                android.util.Log.w(TAG_3B6, "fill failed: $unwrapped")
+                saveDescriptionFillResult(fillResult, verifyResult = null, verifyAttempt = 0)
+                return@evaluateJavascript
+            }
+
+            val resolvedSelector = fillResult.optString("selector", "")
+            android.util.Log.i(
+                TAG_3B6,
+                "fill ok | selector=$resolvedSelector | valueLen=${fillResult.optInt("valueLengthAfterWrite", -1)}"
+            )
+
+            // Two-stage verification: first attempt at 300ms.
+            webView.postDelayed({
+                verifyDescriptionFill(resolvedSelector, testValue, fillResult, attempt = 1)
+            }, 300L)
+        }
+    }
+
+    /**
+     * 3B.6 verify pass — runs at attempt 1 (300ms after fill) or attempt 2
+     * (400ms after attempt 1, 700ms total). Reads the description value
+     * back via separate evaluateJavascript and compares to testValue.
+     *
+     * If attempt 1 reports react_wiped_value, schedules attempt 2 at +400ms.
+     * If attempt 2 also fails, reports react_wiped_value as final.
+     * If either attempt passes, no further verification.
+     *
+     * @param attempt 1 = first verify (300ms), 2 = fallback verify (700ms total)
+     */
+    private fun verifyDescriptionFill(
+        resolvedSelector: String,
+        testValue: String,
+        fillResult: org.json.JSONObject,
+        attempt: Int
+    ) {
+        if (resolvedSelector.isBlank()) {
+            Toast.makeText(this, "3B.6 verify: missing selector", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val verifyJs = """
+            (function() {
+              var sel = ${jsString(resolvedSelector)};
+              var el = document.querySelector(sel);
+              if (!el) {
+                return JSON.stringify({ ok: false, error: 'verify_selector_lost' });
+              }
+              return JSON.stringify({
+                ok: true,
+                value: el.value,
+                valueLength: el.value.length
+              });
+            })();
+        """.trimIndent()
+
+        webView.evaluateJavascript(verifyJs) { rawVerify ->
+            val unwrapped = decodeEvaluateResult(rawVerify)
+            val verifyResult = try {
+                if (unwrapped == null) null else org.json.JSONObject(unwrapped)
+            } catch (e: Exception) {
+                android.util.Log.e(TAG_3B6, "verify result not parseable (attempt=$attempt)", e)
+                null
+            }
+
+            if (verifyResult == null) {
+                Toast.makeText(this, "3B.6 verify: bad JSON", Toast.LENGTH_LONG).show()
+                saveDescriptionFillResult(fillResult, verifyResult = null, verifyAttempt = attempt)
+                return@evaluateJavascript
+            }
+
+            val verifyOk = verifyResult.optBoolean("ok", false)
+            if (!verifyOk) {
+                val verifyError = verifyResult.optString("error", "unknown")
+                Toast.makeText(this, "3B.6 verify failed: $verifyError", Toast.LENGTH_LONG).show()
+                saveDescriptionFillResult(fillResult, verifyResult, verifyAttempt = attempt)
+                return@evaluateJavascript
+            }
+
+            val currentValue = verifyResult.optString("value", "")
+            val survived = currentValue == testValue
+
+            if (survived) {
+                val verifyLabel = if (attempt == 1) "verified" else "verified (fallback)"
+                Toast.makeText(
+                    this,
+                    "3B.6 PASS: Description filled and $verifyLabel",
+                    Toast.LENGTH_LONG
+                ).show()
+                android.util.Log.i(
+                    TAG_3B6,
+                    "verify ok (attempt=$attempt), value preserved (len=${currentValue.length})"
+                )
+                saveDescriptionFillResult(fillResult, verifyResult, verifyAttempt = attempt)
+                return@evaluateJavascript
+            }
+
+            // Value didn't match. If this is attempt 1, schedule attempt 2.
+            if (attempt == 1) {
+                android.util.Log.w(
+                    TAG_3B6,
+                    "verify attempt 1 mismatch — scheduling fallback at +400ms"
+                )
+                webView.postDelayed({
+                    verifyDescriptionFill(resolvedSelector, testValue, fillResult, attempt = 2)
+                }, 400L)
+                return@evaluateJavascript
+            }
+
+            // Attempt 2 failed too — final react_wiped_value.
+            Toast.makeText(
+                this,
+                "3B.6 FAIL: react_wiped_value (700ms)",
+                Toast.LENGTH_LONG
+            ).show()
+            android.util.Log.w(
+                TAG_3B6,
+                "react wiped after 700ms. expected len=${testValue.length}, actual='$currentValue'"
+            )
+            saveDescriptionFillResult(fillResult, verifyResult, verifyAttempt = attempt)
+        }
+    }
+
+    /**
+     * Persist the combined fill+verify result to filesDir for later
+     * inspection. Tracks which verify attempt succeeded (1, 2, or 0 for
+     * fail-before-verify).
+     */
+    private fun saveDescriptionFillResult(
+        fillResult: org.json.JSONObject,
+        verifyResult: org.json.JSONObject?,
+        verifyAttempt: Int
+    ) {
+        try {
+            val combined = org.json.JSONObject().apply {
+                put("phase", "3B.6")
+                put("timestamp", java.text.SimpleDateFormat(
+                    "yyyy-MM-dd'T'HH:mm:ss'Z'",
+                    java.util.Locale.UK
+                ).apply {
+                    timeZone = java.util.TimeZone.getTimeZone("UTC")
+                }.format(java.util.Date()))
+                put("verifyAttempt", verifyAttempt)
+                put("fill", fillResult)
+                if (verifyResult != null) put("verify", verifyResult)
+            }
+            val dir = java.io.File(filesDir, "vinted_operator")
+            if (!dir.exists()) dir.mkdirs()
+            val file = java.io.File(dir, "last_description_fill_result.json")
+            file.writeText(combined.toString(2))
+            android.util.Log.i(TAG_3B6, "saved fill result: ${file.absolutePath}")
+        } catch (e: Exception) {
+            android.util.Log.w(TAG_3B6, "saveDescriptionFillResult failed", e)
+        }
+    }
+
     companion object {
         private const val VINTED_URL = "https://www.vinted.co.uk/"
         private const val VINTED_SELL_URL = "https://www.vinted.co.uk/items/new"
@@ -704,5 +1026,6 @@ class VintedWebOperatorActivity : AppCompatActivity() {
         private const val TAG_3B2 = "VintedOperator-3B2"
         private const val TAG_3B4 = "VintedOperator-3B4"
         private const val TAG_3B5 = "VintedOperator-3B5"
+        private const val TAG_3B6 = "VintedOperator-3B6"
     }
 }
