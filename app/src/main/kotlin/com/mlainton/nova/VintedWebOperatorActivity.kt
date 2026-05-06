@@ -1034,6 +1034,7 @@ class VintedWebOperatorActivity : AppCompatActivity() {
      * for the eventual fill: which masking library is in play (e.g.
      * react-number-format), whether the input setter is intercepted at
      * the element level, and what events the mask listens for.
+     * 3B.7.1.5: also dumps element-own and prototype value setter source.
      *
      * NEVER writes to the page. No setter call, no event dispatch, no
      * value assignment. Pure inspection. JSON returned to Kotlin,
@@ -1201,12 +1202,34 @@ class VintedWebOperatorActivity : AppCompatActivity() {
                   enumerable: d.enumerable === true
                 };
               }
-              var elementOwnDescriptor = descInfo(
-                Object.getOwnPropertyDescriptor(resolved, 'value')
-              );
-              var prototypeDescriptor = descInfo(
-                Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')
-              );
+              var elementOwnDescriptorRaw = Object.getOwnPropertyDescriptor(resolved, 'value');
+              var prototypeDescriptorRaw = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+              var elementOwnDescriptor = descInfo(elementOwnDescriptorRaw);
+              var prototypeDescriptor = descInfo(prototypeDescriptorRaw);
+
+              // 3B.7.1.5 — capture the setter source strings so 3B.7.2 can
+              // tell React's native-delegating stub from a synthetic mask
+              // interceptor. Reflection only — the setter is never invoked.
+              var elementOwnSetterSource = null;
+              if (elementOwnDescriptorRaw && typeof elementOwnDescriptorRaw['set'] === 'function') {
+                try {
+                  var s1 = Function.prototype.toString.call(elementOwnDescriptorRaw['set']);
+                  elementOwnSetterSource = (s1.length > 500) ? s1.substring(0, 500) : s1;
+                } catch (e) {
+                  elementOwnSetterSource = null;
+                }
+              }
+              var prototypeSetterSource = null;
+              if (prototypeDescriptorRaw && typeof prototypeDescriptorRaw['set'] === 'function') {
+                try {
+                  var s2 = Function.prototype.toString.call(prototypeDescriptorRaw['set']);
+                  prototypeSetterSource = (s2.length > 500) ? s2.substring(0, 500) : s2;
+                } catch (e) {
+                  prototypeSetterSource = null;
+                }
+              }
+              var elementOwnSetterIsNative = (typeof elementOwnSetterSource === 'string' &&
+                                              elementOwnSetterSource.indexOf('[native code]') !== -1);
 
               // DOM-level event listener detection — DevTools-only API,
               // unavailable in production WebView. Report the support flag.
@@ -1232,6 +1255,9 @@ class VintedWebOperatorActivity : AppCompatActivity() {
                 },
                 elementOwnDescriptor: elementOwnDescriptor,
                 prototypeDescriptor: prototypeDescriptor,
+                elementOwnSetterSource: elementOwnSetterSource,
+                prototypeSetterSource: prototypeSetterSource,
+                elementOwnSetterIsNative: elementOwnSetterIsNative,
                 listenersDetectionSupported: listenersDetectionSupported
               });
             })();
