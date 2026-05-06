@@ -116,11 +116,28 @@ class VintedWebOperatorActivity : AppCompatActivity() {
             setMargins(margin, margin, margin, margin)
         }
 
+        // 3B.7.1 — Inspect Price (read-only diagnostic). Bottom-LEFT,
+        // stacked above Fill Title with 72dp bottom margin to clear it.
+        val inspectPriceButton = Button(this).apply {
+            text = "Inspect Price"
+            setOnClickListener { inspectPriceTest() }
+        }
+        val inspectPriceButtonParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.START
+            val margin = (16 * resources.displayMetrics.density).toInt()
+            val stackedBottom = (72 * resources.displayMetrics.density).toInt()
+            setMargins(margin, margin, margin, stackedBottom)
+        }
+
         root.addView(webView)
         root.addView(progressBar)
         root.addView(inspectButton, inspectButtonParams)
         root.addView(fillTitleButton, fillTitleButtonParams)
         root.addView(fillDescButton, fillDescButtonParams)
+        root.addView(inspectPriceButton, inspectPriceButtonParams)
         setContentView(root)
 
         configureWebView()
@@ -1007,6 +1024,299 @@ class VintedWebOperatorActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * 3B.7.1 — Price mask inspector. Read-only diagnostic.
+     *
+     * Resolves the price input on /items/new and captures structural
+     * intel about how the field is wired (React props, value tracker,
+     * native descriptors, parent wrapper, ARIA state) without touching
+     * a single byte of state. Output feeds 3B.7.2's mechanism choice
+     * for the eventual fill: which masking library is in play (e.g.
+     * react-number-format), whether the input setter is intercepted at
+     * the element level, and what events the mask listens for.
+     *
+     * NEVER writes to the page. No setter call, no event dispatch, no
+     * value assignment. Pure inspection. JSON returned to Kotlin,
+     * persisted to filesDir, and displayed in a copyable AlertDialog.
+     */
+    private fun inspectPriceTest() {
+        val inspectJs = """
+            (function() {
+              'use strict';
+
+              // Page guard — refuse to inspect on the wrong page.
+              var url = location.href.toLowerCase();
+              var pageTitle = (document.title || '').toLowerCase();
+              if (url.indexOf('/items/new') === -1 || pageTitle.indexOf('sell') === -1) {
+                return JSON.stringify({
+                  ok: false,
+                  error: 'page_guard_failed',
+                  url: location.href,
+                  title: document.title
+                });
+              }
+
+              // Selector candidates — same set 3B.7 had.
+              var selectors = [
+                '[data-testid="price-input--input"]',
+                'input[name="price"]',
+                'input[placeholder="£0.00"]',
+                '#price',
+                'input#price'
+              ];
+
+              var resolved = null;
+              var resolvedSelector = null;
+              for (var i = 0; i < selectors.length; i++) {
+                var sel = selectors[i];
+                var matches;
+                try {
+                  matches = document.querySelectorAll(sel);
+                } catch (e) {
+                  continue;
+                }
+                if (matches.length !== 1) continue;
+                var el = matches[0];
+                var rect0 = el.getBoundingClientRect();
+                if (rect0.width === 0 || rect0.height === 0) continue;
+                var tag0 = el.tagName.toLowerCase();
+                if (tag0 !== 'input') continue;
+                resolved = el;
+                resolvedSelector = sel;
+                break;
+              }
+
+              if (!resolved) {
+                return JSON.stringify({ ok: false, error: 'selector_not_found' });
+              }
+
+              // Identity guard — must actually be the price field.
+              var dt = resolved.getAttribute('data-testid') || '';
+              var nameAttr = resolved.getAttribute('name') || '';
+              var idAttr = resolved.id || '';
+              var isPrice = (dt === 'price-input--input') || (nameAttr === 'price') || (idAttr === 'price');
+              if (!isPrice) {
+                return JSON.stringify({
+                  ok: false,
+                  error: 'identity_mismatch',
+                  dataTestId: dt,
+                  name: nameAttr,
+                  id: idAttr
+                });
+              }
+
+              // Element attributes — strict read.
+              var attributes = {
+                tag: resolved.tagName.toLowerCase(),
+                type: resolved.getAttribute('type') || '',
+                name: nameAttr,
+                id: idAttr,
+                dataTestId: dt,
+                placeholder: resolved.getAttribute('placeholder') || '',
+                inputmode: resolved.getAttribute('inputmode') || '',
+                pattern: resolved.getAttribute('pattern') || '',
+                autocomplete: resolved.getAttribute('autocomplete') || '',
+                maxlength: resolved.getAttribute('maxlength') || '',
+                ariaLabel: resolved.getAttribute('aria-label') || '',
+                ariaInvalid: resolved.getAttribute('aria-invalid') || '',
+                ariaDescribedBy: resolved.getAttribute('aria-describedby') || '',
+                role: resolved.getAttribute('role') || '',
+                readonly: resolved.readOnly === true,
+                disabled: resolved.disabled === true,
+                required: resolved.required === true
+              };
+
+              var r = resolved.getBoundingClientRect();
+              var boundingRect = { x: r.left, y: r.top, w: r.width, h: r.height };
+
+              var currentValue = resolved.value;
+              var currentValueLength = currentValue.length;
+
+              // Two levels of parent wrapper info — field wrapper plus container.
+              var p1 = resolved.parentNode;
+              var p2 = p1 ? p1.parentNode : null;
+              function parentInfo(p) {
+                if (!p) return null;
+                var dtid = (p.getAttribute && p.nodeType === 1) ? (p.getAttribute('data-testid') || '') : '';
+                var cls = (typeof p.className === 'string') ? p.className : '';
+                return {
+                  tag: p.tagName ? p.tagName.toLowerCase() : null,
+                  dataTestId: dtid,
+                  className: cls
+                };
+              }
+              var parents = {
+                parent1: parentInfo(p1),
+                parent2: parentInfo(p2)
+              };
+
+              // React detection — keys only, never serialise the values themselves.
+              var reactKeys = Object.keys(resolved).filter(function(k) {
+                return k.indexOf('__react') === 0;
+              });
+              var reactKeyTypes = {};
+              for (var ri = 0; ri < reactKeys.length; ri++) {
+                var rk = reactKeys[ri];
+                reactKeyTypes[rk] = typeof resolved[rk];
+              }
+
+              // __reactProps prop NAMES only — never the values.
+              var reactPropNames = null;
+              var reactPropsKey = null;
+              for (var rj = 0; rj < reactKeys.length; rj++) {
+                if (reactKeys[rj].indexOf('__reactProps') === 0) {
+                  reactPropsKey = reactKeys[rj];
+                  try {
+                    reactPropNames = Object.keys(resolved[reactKeys[rj]]);
+                  } catch (e) {
+                    reactPropNames = null;
+                  }
+                  break;
+                }
+              }
+
+              // Value tracker detection — getValue() is a pure read, safe.
+              var hasValueTracker = (typeof resolved._valueTracker === 'object' && resolved._valueTracker !== null);
+              var trackerGetValueType = null;
+              var trackerValue = null;
+              if (hasValueTracker) {
+                trackerGetValueType = typeof resolved._valueTracker.getValue;
+                if (trackerGetValueType === 'function') {
+                  try {
+                    trackerValue = resolved._valueTracker.getValue();
+                  } catch (e) {
+                    trackerValue = null;
+                  }
+                }
+              }
+
+              // Input descriptor inspection — metadata only. Bracket-notation
+              // lookups so this stays a pure read with no setter invocation.
+              function descInfo(d) {
+                if (!d) return null;
+                return {
+                  hasGet: typeof d['get'] === 'function',
+                  hasSet: typeof d['set'] === 'function',
+                  configurable: d.configurable === true,
+                  enumerable: d.enumerable === true
+                };
+              }
+              var elementOwnDescriptor = descInfo(
+                Object.getOwnPropertyDescriptor(resolved, 'value')
+              );
+              var prototypeDescriptor = descInfo(
+                Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')
+              );
+
+              // DOM-level event listener detection — DevTools-only API,
+              // unavailable in production WebView. Report the support flag.
+              var listenersDetectionSupported = (typeof resolved.getEventListeners === 'function');
+
+              return JSON.stringify({
+                ok: true,
+                phase: '3B.7.1',
+                selector: resolvedSelector,
+                attributes: attributes,
+                boundingRect: boundingRect,
+                currentValue: currentValue,
+                currentValueLength: currentValueLength,
+                parents: parents,
+                reactKeys: reactKeys,
+                reactKeyTypes: reactKeyTypes,
+                reactPropsKey: reactPropsKey,
+                reactPropNames: reactPropNames,
+                valueTracker: {
+                  hasValueTracker: hasValueTracker,
+                  getValueType: trackerGetValueType,
+                  trackerValue: trackerValue
+                },
+                elementOwnDescriptor: elementOwnDescriptor,
+                prototypeDescriptor: prototypeDescriptor,
+                listenersDetectionSupported: listenersDetectionSupported
+              });
+            })();
+        """.trimIndent()
+
+        Toast.makeText(this, "3B.7.1 inspector running…", Toast.LENGTH_SHORT).show()
+
+        webView.evaluateJavascript(inspectJs) { rawResult ->
+            val unwrapped = decodeEvaluateResult(rawResult)
+            if (unwrapped == null) {
+                Toast.makeText(
+                    this,
+                    "3B.7.1 inspect: no JSON returned (check logcat)",
+                    Toast.LENGTH_LONG
+                ).show()
+                android.util.Log.w(TAG_3B71, "inspect JS returned null. raw=$rawResult")
+                return@evaluateJavascript
+            }
+
+            val pretty = prettyPrintJson(unwrapped)
+            showAndSavePriceMaskResult(pretty)
+
+            val parsed = try {
+                org.json.JSONObject(unwrapped)
+            } catch (e: Exception) {
+                null
+            }
+            if (parsed != null && parsed.optBoolean("ok", false)) {
+                android.util.Log.i(
+                    TAG_3B71,
+                    "inspect ok | selector=${parsed.optString("selector")} | chars=${pretty.length}"
+                )
+                Toast.makeText(
+                    this,
+                    "3B.7.1 captured price mask intel",
+                    Toast.LENGTH_LONG
+                ).show()
+            } else {
+                val err = parsed?.optString("error", "unknown") ?: "bad_json"
+                Toast.makeText(this, "3B.7.1 failed: $err", Toast.LENGTH_LONG).show()
+                android.util.Log.w(TAG_3B71, "inspect failed: $unwrapped")
+            }
+        }
+    }
+
+    /**
+     * 3B.7.1 helper — persist the price-mask inspect JSON to filesDir
+     * and surface it in a scrollable, copyable AlertDialog. Same UX as
+     * 3B.4's showInspectorDialog but distinct title and storage path so
+     * the price-mask snapshot doesn't overwrite the form-wide one.
+     */
+    private fun showAndSavePriceMaskResult(jsonText: String) {
+        try {
+            val dir = File(filesDir, "vinted_operator")
+            if (!dir.exists()) dir.mkdirs()
+            val file = File(dir, "last_price_mask_inspect.json")
+            file.writeText(jsonText)
+            android.util.Log.i(TAG_3B71, "saved price mask inspect: ${file.absolutePath}")
+        } catch (e: Exception) {
+            android.util.Log.w(TAG_3B71, "save price mask inspect failed", e)
+        }
+
+        val scroll = ScrollView(this)
+        val tv = TextView(this).apply {
+            text = jsonText
+            setPadding(32, 32, 32, 32)
+            setTextIsSelectable(true)
+            textSize = 11f
+            typeface = android.graphics.Typeface.MONOSPACE
+        }
+        scroll.addView(tv)
+
+        AlertDialog.Builder(this)
+            .setTitle("3B.7.1 Price mask inspector")
+            .setView(scroll)
+            .setPositiveButton("Copy") { _, _ ->
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("vinted_price_mask_inspect", jsonText)
+                clipboard.setPrimaryClip(clip)
+                Toast.makeText(this, "Copied ${jsonText.length} chars", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
     companion object {
         private const val VINTED_URL = "https://www.vinted.co.uk/"
         private const val VINTED_SELL_URL = "https://www.vinted.co.uk/items/new"
@@ -1027,5 +1337,6 @@ class VintedWebOperatorActivity : AppCompatActivity() {
         private const val TAG_3B4 = "VintedOperator-3B4"
         private const val TAG_3B5 = "VintedOperator-3B5"
         private const val TAG_3B6 = "VintedOperator-3B6"
+        private const val TAG_3B71 = "VintedOperator-3B71"
     }
 }
