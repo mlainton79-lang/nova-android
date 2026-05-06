@@ -530,18 +530,10 @@ class VintedWebOperatorActivity : AppCompatActivity() {
                 });
               }
 
-              // Native setter trick — bypass React's controlled-input shadow
-              // state by calling the prototype's value setter directly.
-              var proto = (resolved instanceof HTMLTextAreaElement)
-                ? window.HTMLTextAreaElement.prototype
-                : window.HTMLInputElement.prototype;
-              var descriptor = Object.getOwnPropertyDescriptor(proto, 'value');
-              if (!descriptor || !descriptor.set) {
-                return JSON.stringify({ ok: false, error: 'native_setter_missing' });
-              }
-
+              // 3B.7.5 — element-own setter (React-aware) with prototype
+              // fallback. See buildElementOwnSetterBlock KDoc for rationale.
               var testValue = ${jsString(testValue)};
-              descriptor.set.call(resolved, testValue);
+              ${buildElementOwnSetterBlock("HTMLInputElement")}
 
               // Dispatch the events React listens for.
               resolved.dispatchEvent(new Event('input', { bubbles: true }));
@@ -555,6 +547,7 @@ class VintedWebOperatorActivity : AppCompatActivity() {
                 ok: true,
                 selector: resolvedSelector,
                 tag: resolved.tagName.toLowerCase(),
+                setterUsed: setterUsed,
                 valueAfterWrite: resolved.value,
                 valueLengthAfterWrite: resolved.value.length,
                 testValue: testValue
@@ -719,6 +712,32 @@ class VintedWebOperatorActivity : AppCompatActivity() {
     }
 
     /**
+     * 3B.7.5 helper — emit the JS chunk that calls the element-own 'value'
+     * setter (React's tracker wrapper, per 3B.7.1.5) on `resolved`, with
+     * `$prototypeName.prototype`'s setter as fallback. Expects `resolved`
+     * and `testValue` already in scope. Introduces `setterUsed`
+     * ('element_own' | 'prototype_fallback'), short-circuits with the
+     * legacy `native_setter_missing` JSON when neither descriptor exposes
+     * a setter. `prototypeName` is "HTMLInputElement" or "HTMLTextAreaElement".
+     */
+    private fun buildElementOwnSetterBlock(prototypeName: String): String {
+        return """var ownDescriptor = Object.getOwnPropertyDescriptor(resolved, 'value');
+              var protoDescriptor = Object.getOwnPropertyDescriptor(
+                $prototypeName.prototype, 'value'
+              );
+              var setterUsed = null;
+              if (ownDescriptor && typeof ownDescriptor.set === 'function') {
+                ownDescriptor.set.call(resolved, testValue);
+                setterUsed = 'element_own';
+              } else if (protoDescriptor && typeof protoDescriptor.set === 'function') {
+                protoDescriptor.set.call(resolved, testValue);
+                setterUsed = 'prototype_fallback';
+              } else {
+                return JSON.stringify({ ok: false, error: 'native_setter_missing' });
+              }"""
+    }
+
+    /**
      * 3B.5 helper — escape a Kotlin string for safe interpolation as a JS
      * string literal. Wraps in double quotes, escapes backslashes, double
      * quotes, and newlines. Used for testValue and resolvedSelector
@@ -833,16 +852,10 @@ class VintedWebOperatorActivity : AppCompatActivity() {
                 });
               }
 
-              // Native setter trick — HTMLTextAreaElement prototype, no
-              // input branch needed since description is always textarea.
-              var proto = window.HTMLTextAreaElement.prototype;
-              var descriptor = Object.getOwnPropertyDescriptor(proto, 'value');
-              if (!descriptor || !descriptor.set) {
-                return JSON.stringify({ ok: false, error: 'native_setter_missing' });
-              }
-
+              // 3B.7.5 — element-own setter (React-aware) with prototype
+              // fallback. See buildElementOwnSetterBlock KDoc for rationale.
               var testValue = ${jsString(testValue)};
-              descriptor.set.call(resolved, testValue);
+              ${buildElementOwnSetterBlock("HTMLTextAreaElement")}
 
               // Dispatch the events React listens for.
               resolved.dispatchEvent(new Event('input', { bubbles: true }));
@@ -853,6 +866,7 @@ class VintedWebOperatorActivity : AppCompatActivity() {
                 ok: true,
                 selector: resolvedSelector,
                 tag: resolved.tagName.toLowerCase(),
+                setterUsed: setterUsed,
                 valueAfterWrite: resolved.value,
                 valueLengthAfterWrite: resolved.value.length,
                 testValue: testValue
@@ -1462,25 +1476,10 @@ class VintedWebOperatorActivity : AppCompatActivity() {
                 });
               }
 
-              // 3B.7.1.5 discovery: the element-own value setter is React's
-              // tracker wrapper. Calling it keeps React's internal state in
-              // sync. Use it as primary; prototype fallback only.
-              var ownDescriptor = Object.getOwnPropertyDescriptor(resolved, 'value');
-              var protoDescriptor = Object.getOwnPropertyDescriptor(
-                HTMLInputElement.prototype, 'value'
-              );
-
+              // 3B.7.5 — element-own setter (React-aware) with prototype
+              // fallback. See buildElementOwnSetterBlock KDoc for rationale.
               var testValue = ${jsString(testValue)};
-              var setterUsed = null;
-              if (ownDescriptor && typeof ownDescriptor.set === 'function') {
-                ownDescriptor.set.call(resolved, testValue);
-                setterUsed = 'element_own';
-              } else if (protoDescriptor && typeof protoDescriptor.set === 'function') {
-                protoDescriptor.set.call(resolved, testValue);
-                setterUsed = 'prototype_fallback';
-              } else {
-                return JSON.stringify({ ok: false, error: 'native_setter_missing' });
-              }
+              ${buildElementOwnSetterBlock("HTMLInputElement")}
 
               // Dispatch the events React listens for.
               resolved.dispatchEvent(new Event('input', { bubbles: true }));
