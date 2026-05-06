@@ -132,12 +132,29 @@ class VintedWebOperatorActivity : AppCompatActivity() {
             setMargins(margin, margin, margin, stackedBottom)
         }
 
+        // 3B.7.2 — Fill Price (write-mode). Bottom-CENTER, stacked above
+        // Fill Desc with 72dp bottom margin to clear it.
+        val fillPriceButton = Button(this).apply {
+            text = "Fill Price"
+            setOnClickListener { fillPriceTest() }
+        }
+        val fillPriceButtonParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            val margin = (16 * resources.displayMetrics.density).toInt()
+            val stackedBottom = (72 * resources.displayMetrics.density).toInt()
+            setMargins(margin, margin, margin, stackedBottom)
+        }
+
         root.addView(webView)
         root.addView(progressBar)
         root.addView(inspectButton, inspectButtonParams)
         root.addView(fillTitleButton, fillTitleButtonParams)
         root.addView(fillDescButton, fillDescButtonParams)
         root.addView(inspectPriceButton, inspectPriceButtonParams)
+        root.addView(fillPriceButton, fillPriceButtonParams)
         setContentView(root)
 
         configureWebView()
@@ -1343,6 +1360,411 @@ class VintedWebOperatorActivity : AppCompatActivity() {
             .show()
     }
 
+    /**
+     * 3B.7.2 — Third write-mode fill: Price only.
+     *
+     * 3B.7 attempts 1 (raw "25") and 2 ("£25.00") both failed the verify
+     * with £NaN / price_unparseable because they used the prototype value
+     * setter — which writes the DOM value past React's tracker but never
+     * synchronises React's internal state. The price handler then read
+     * an empty internal value, parsed it, and produced NaN.
+     *
+     * 3B.7.1.5's inspector confirmed the price input has an ELEMENT-OWN
+     * 'value' descriptor with hasSet:true, source not "[native code]" —
+     * i.e. React's tracker wrapper. Calling that setter routes through
+     * the tracker so React's internal state stays in sync. This brick
+     * uses the element-own setter as the primary path, with prototype
+     * fallback only if the element-own descriptor disappears.
+     *
+     * Test value: "£25.00", expectedPence 2500. Verify is pence-normalised:
+     * strip £/commas/whitespace, parseFloat, NaN-check, round to pence.
+     * Two-stage verify (300ms then +400ms = 700ms total) mirrors 3B.6.
+     *
+     * NEVER clicks any button. The setter call + event dispatch is the
+     * only action this method takes against the page.
+     *
+     * Failure modes (all return early without retry):
+     *  - selector_not_found / identity_mismatch / page_guard_failed
+     *  - native_setter_missing: neither own nor prototype descriptor has a setter
+     *  - verify_selector_lost: input vanished between fill and verify
+     *  - price_unparseable: value parses to NaN (the 3B.7 failure shape)
+     *  - price_mismatch: parsed pence != expectedPence
+     */
+    private fun fillPriceTest() {
+        val testValue = "£25.00"
+        val expectedPence = 2500
+
+        val fillJs = """
+            (function() {
+              'use strict';
+
+              // Page guard — refuse to fill on the wrong page.
+              var url = location.href.toLowerCase();
+              var pageTitle = (document.title || '').toLowerCase();
+              if (url.indexOf('/items/new') === -1 || pageTitle.indexOf('sell') === -1) {
+                return JSON.stringify({
+                  ok: false,
+                  error: 'page_guard_failed',
+                  url: location.href,
+                  title: document.title
+                });
+              }
+
+              // Selector candidates from 3B.7.1 / 3B.7.1.5 inspector.
+              var selectors = [
+                '[data-testid="price-input--input"]',
+                'input[name="price"]',
+                'input[placeholder="£0.00"]',
+                '#price',
+                'input#price'
+              ];
+
+              var resolved = null;
+              var resolvedSelector = null;
+              for (var i = 0; i < selectors.length; i++) {
+                var sel = selectors[i];
+                var matches;
+                try {
+                  matches = document.querySelectorAll(sel);
+                } catch (e) {
+                  continue;
+                }
+                if (matches.length !== 1) continue;
+                var el = matches[0];
+                var rect = el.getBoundingClientRect();
+                if (rect.width === 0 || rect.height === 0) continue;
+                if (el.disabled === true) continue;
+                if (el.readOnly === true) continue;
+                // Tag check — must be input for price.
+                var tag = el.tagName.toLowerCase();
+                if (tag !== 'input') continue;
+                resolved = el;
+                resolvedSelector = sel;
+                break;
+              }
+
+              if (!resolved) {
+                return JSON.stringify({ ok: false, error: 'selector_not_found' });
+              }
+
+              // Identity guard — must actually be the price field.
+              var dt = resolved.getAttribute('data-testid') || '';
+              var nameAttr = resolved.getAttribute('name') || '';
+              var idAttr = resolved.id || '';
+              var isPrice = (dt === 'price-input--input') || (nameAttr === 'price') || (idAttr === 'price');
+              if (!isPrice) {
+                return JSON.stringify({
+                  ok: false,
+                  error: 'identity_mismatch',
+                  dataTestId: dt,
+                  name: nameAttr,
+                  id: idAttr
+                });
+              }
+
+              // 3B.7.1.5 discovery: the element-own value setter is React's
+              // tracker wrapper. Calling it keeps React's internal state in
+              // sync. Use it as primary; prototype fallback only.
+              var ownDescriptor = Object.getOwnPropertyDescriptor(resolved, 'value');
+              var protoDescriptor = Object.getOwnPropertyDescriptor(
+                HTMLInputElement.prototype, 'value'
+              );
+
+              var testValue = ${jsString(testValue)};
+              var setterUsed = null;
+              if (ownDescriptor && typeof ownDescriptor.set === 'function') {
+                ownDescriptor.set.call(resolved, testValue);
+                setterUsed = 'element_own';
+              } else if (protoDescriptor && typeof protoDescriptor.set === 'function') {
+                protoDescriptor.set.call(resolved, testValue);
+                setterUsed = 'prototype_fallback';
+              } else {
+                return JSON.stringify({ ok: false, error: 'native_setter_missing' });
+              }
+
+              // Dispatch the events React listens for.
+              resolved.dispatchEvent(new Event('input', { bubbles: true }));
+              resolved.dispatchEvent(new Event('change', { bubbles: true }));
+              resolved.dispatchEvent(new Event('blur', { bubbles: true }));
+
+              return JSON.stringify({
+                ok: true,
+                selector: resolvedSelector,
+                tag: resolved.tagName.toLowerCase(),
+                setterUsed: setterUsed,
+                valueAfterWrite: resolved.value,
+                valueLengthAfterWrite: resolved.value.length,
+                testValue: testValue
+              });
+            })();
+        """.trimIndent()
+
+        Toast.makeText(this, "3B.7.2 fill running…", Toast.LENGTH_SHORT).show()
+
+        webView.evaluateJavascript(fillJs) { rawResult ->
+            val unwrapped = decodeEvaluateResult(rawResult)
+            if (unwrapped == null) {
+                Toast.makeText(
+                    this,
+                    "3B.7.2 fill: no JSON returned (check logcat)",
+                    Toast.LENGTH_LONG
+                ).show()
+                android.util.Log.w(TAG_3B7, "fill JS returned null. raw=$rawResult")
+                return@evaluateJavascript
+            }
+
+            val fillResult = try {
+                org.json.JSONObject(unwrapped)
+            } catch (e: Exception) {
+                android.util.Log.e(TAG_3B7, "fill result not parseable as JSON", e)
+                Toast.makeText(this, "3B.7.2 fill: bad JSON (check logcat)", Toast.LENGTH_LONG).show()
+                return@evaluateJavascript
+            }
+
+            val ok = fillResult.optBoolean("ok", false)
+            if (!ok) {
+                val error = fillResult.optString("error", "unknown_error")
+                Toast.makeText(this, "3B.7.2 fill failed: $error", Toast.LENGTH_LONG).show()
+                android.util.Log.w(TAG_3B7, "fill failed: $unwrapped")
+                savePriceFillResult(
+                    fillResult,
+                    verifyResult = null,
+                    verifyAttempt = 0,
+                    expectedPence = expectedPence
+                )
+                return@evaluateJavascript
+            }
+
+            val resolvedSelector = fillResult.optString("selector", "")
+            val setterUsed = fillResult.optString("setterUsed", "")
+            android.util.Log.i(
+                TAG_3B7,
+                "fill ok | selector=$resolvedSelector | setterUsed=$setterUsed | valueLen=${fillResult.optInt("valueLengthAfterWrite", -1)}"
+            )
+
+            // Two-stage verification: first attempt at 300ms.
+            webView.postDelayed({
+                verifyPriceFill(
+                    resolvedSelector,
+                    testValue,
+                    expectedPence,
+                    fillResult,
+                    attempt = 1
+                )
+            }, 300L)
+        }
+    }
+
+    /**
+     * 3B.7.2 verify pass — runs at attempt 1 (300ms after fill) or attempt
+     * 2 (400ms after attempt 1, 700ms total). Reads the price value back,
+     * strips £/commas/whitespace, parseFloat, rounds to pence, compares
+     * to expectedPence.
+     *
+     * NaN at attempt 1 → schedule attempt 2 at +400ms.
+     * NaN at attempt 2 → final price_unparseable.
+     * Mismatch at attempt 1 → schedule attempt 2 at +400ms.
+     * Mismatch at attempt 2 → final price_mismatch.
+     */
+    private fun verifyPriceFill(
+        resolvedSelector: String,
+        testValue: String,
+        expectedPence: Int,
+        fillResult: org.json.JSONObject,
+        attempt: Int
+    ) {
+        if (resolvedSelector.isBlank()) {
+            Toast.makeText(this, "3B.7.2 verify: missing selector", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val verifyJs = """
+            (function() {
+              var sel = ${jsString(resolvedSelector)};
+              var el = document.querySelector(sel);
+              if (!el) {
+                return JSON.stringify({ ok: false, error: 'verify_selector_lost' });
+              }
+              var raw = el.value || '';
+              // Strip £, commas, and whitespace; parseFloat; round to pence.
+              var stripped = raw.replace(/[£,\s]/g, '');
+              var asFloat = parseFloat(stripped);
+              var isNan = isNaN(asFloat);
+              var actualPence = isNan ? null : Math.round(asFloat * 100);
+              return JSON.stringify({
+                ok: true,
+                value: raw,
+                valueLength: raw.length,
+                stripped: stripped,
+                asFloat: isNan ? null : asFloat,
+                isNan: isNan,
+                actualPence: actualPence
+              });
+            })();
+        """.trimIndent()
+
+        webView.evaluateJavascript(verifyJs) { rawVerify ->
+            val unwrapped = decodeEvaluateResult(rawVerify)
+            val verifyResult = try {
+                if (unwrapped == null) null else org.json.JSONObject(unwrapped)
+            } catch (e: Exception) {
+                android.util.Log.e(TAG_3B7, "verify result not parseable (attempt=$attempt)", e)
+                null
+            }
+
+            if (verifyResult == null) {
+                Toast.makeText(this, "3B.7.2 verify: bad JSON", Toast.LENGTH_LONG).show()
+                savePriceFillResult(
+                    fillResult,
+                    verifyResult = null,
+                    verifyAttempt = attempt,
+                    expectedPence = expectedPence
+                )
+                return@evaluateJavascript
+            }
+
+            val verifyOk = verifyResult.optBoolean("ok", false)
+            if (!verifyOk) {
+                val verifyError = verifyResult.optString("error", "unknown")
+                Toast.makeText(this, "3B.7.2 verify failed: $verifyError", Toast.LENGTH_LONG).show()
+                savePriceFillResult(
+                    fillResult,
+                    verifyResult,
+                    verifyAttempt = attempt,
+                    expectedPence = expectedPence
+                )
+                return@evaluateJavascript
+            }
+
+            val isNan = verifyResult.optBoolean("isNan", false)
+            if (isNan) {
+                if (attempt == 1) {
+                    android.util.Log.w(
+                        TAG_3B7,
+                        "verify attempt 1 NaN — scheduling fallback at +400ms"
+                    )
+                    webView.postDelayed({
+                        verifyPriceFill(
+                            resolvedSelector,
+                            testValue,
+                            expectedPence,
+                            fillResult,
+                            attempt = 2
+                        )
+                    }, 400L)
+                    return@evaluateJavascript
+                }
+                Toast.makeText(
+                    this,
+                    "3B.7.2 FAIL: price_unparseable (700ms)",
+                    Toast.LENGTH_LONG
+                ).show()
+                android.util.Log.w(
+                    TAG_3B7,
+                    "price_unparseable after 700ms. raw='${verifyResult.optString("value", "")}'"
+                )
+                savePriceFillResult(
+                    fillResult,
+                    verifyResult,
+                    verifyAttempt = attempt,
+                    expectedPence = expectedPence
+                )
+                return@evaluateJavascript
+            }
+
+            val actualPence = verifyResult.optInt("actualPence", -1)
+            if (actualPence == expectedPence) {
+                val verifyLabel = if (attempt == 1) "verified" else "verified (fallback)"
+                Toast.makeText(
+                    this,
+                    "3B.7.2 PASS: Price filled and $verifyLabel (${actualPence}p)",
+                    Toast.LENGTH_LONG
+                ).show()
+                android.util.Log.i(
+                    TAG_3B7,
+                    "verify ok (attempt=$attempt), pence=$actualPence"
+                )
+                savePriceFillResult(
+                    fillResult,
+                    verifyResult,
+                    verifyAttempt = attempt,
+                    expectedPence = expectedPence
+                )
+                return@evaluateJavascript
+            }
+
+            // Pence mismatch.
+            if (attempt == 1) {
+                android.util.Log.w(
+                    TAG_3B7,
+                    "verify attempt 1 mismatch (expected=$expectedPence, actual=$actualPence) — scheduling fallback at +400ms"
+                )
+                webView.postDelayed({
+                    verifyPriceFill(
+                        resolvedSelector,
+                        testValue,
+                        expectedPence,
+                        fillResult,
+                        attempt = 2
+                    )
+                }, 400L)
+                return@evaluateJavascript
+            }
+
+            Toast.makeText(
+                this,
+                "3B.7.2 FAIL: price_mismatch (expected=$expectedPence, actual=$actualPence)",
+                Toast.LENGTH_LONG
+            ).show()
+            android.util.Log.w(
+                TAG_3B7,
+                "price_mismatch after 700ms. expected=$expectedPence, actual=$actualPence"
+            )
+            savePriceFillResult(
+                fillResult,
+                verifyResult,
+                verifyAttempt = attempt,
+                expectedPence = expectedPence
+            )
+        }
+    }
+
+    /**
+     * Persist the combined fill+verify result to filesDir. Records the
+     * setter that ran (element_own vs prototype_fallback) and which
+     * verify attempt closed the result, plus the expected pence baseline.
+     */
+    private fun savePriceFillResult(
+        fillResult: org.json.JSONObject,
+        verifyResult: org.json.JSONObject?,
+        verifyAttempt: Int,
+        expectedPence: Int
+    ) {
+        try {
+            val combined = org.json.JSONObject().apply {
+                put("phase", "3B.7.2")
+                put("timestamp", java.text.SimpleDateFormat(
+                    "yyyy-MM-dd'T'HH:mm:ss'Z'",
+                    java.util.Locale.UK
+                ).apply {
+                    timeZone = java.util.TimeZone.getTimeZone("UTC")
+                }.format(java.util.Date()))
+                put("expectedPence", expectedPence)
+                put("verifyAttempt", verifyAttempt)
+                put("setterUsed", fillResult.optString("setterUsed", "unknown"))
+                put("fill", fillResult)
+                if (verifyResult != null) put("verify", verifyResult)
+            }
+            val dir = java.io.File(filesDir, "vinted_operator")
+            if (!dir.exists()) dir.mkdirs()
+            val file = java.io.File(dir, "last_price_fill_result.json")
+            file.writeText(combined.toString(2))
+            android.util.Log.i(TAG_3B7, "saved fill result: ${file.absolutePath}")
+        } catch (e: Exception) {
+            android.util.Log.w(TAG_3B7, "savePriceFillResult failed", e)
+        }
+    }
+
     companion object {
         private const val VINTED_URL = "https://www.vinted.co.uk/"
         private const val VINTED_SELL_URL = "https://www.vinted.co.uk/items/new"
@@ -1364,5 +1786,6 @@ class VintedWebOperatorActivity : AppCompatActivity() {
         private const val TAG_3B5 = "VintedOperator-3B5"
         private const val TAG_3B6 = "VintedOperator-3B6"
         private const val TAG_3B71 = "VintedOperator-3B71"
+        private const val TAG_3B7 = "VintedOperator-3B7"
     }
 }
