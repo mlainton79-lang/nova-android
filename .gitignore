@@ -11,3 +11,7 @@ full/
 .acside/
 MainActivity.kt.tmp
 .claude/
+
+# A3 Sentry — transient edit-script + backups (not committed)
+a3_sentry.py
+*.bak.a3_sentry
