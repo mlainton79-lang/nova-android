@@ -15,3 +15,7 @@ MainActivity.kt.tmp
 # A3 Sentry — transient edit-script + backups (not committed)
 a3_sentry.py
 *.bak.a3_sentry
+a3_testcrash.py
+a3_testcrash_remove.py
+*.bak.a3_testcrash
+*.bak.a3_testcrash_remove

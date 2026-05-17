@@ -98,6 +98,17 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // ===== A3 TEST CRASH — REMOVE AFTER SENTRY VERIFY =====
+        // Temporary: fires 3s after launch so Sentry init + UI
+        // have completed, then throws on the main thread. Sentry
+        // captures the uncaught exception and ships it to the
+        // dashboard. Delete this whole fenced block once the
+        // crash event is confirmed in Sentry (R1.4 brick A3).
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
+            { throw RuntimeException("A3 Sentry verification test crash") },
+            3000L
+        )
+        // ===== END A3 TEST CRASH =====
         setContentView(R.layout.activity_main)
 
         markwon = Markwon.create(this)
