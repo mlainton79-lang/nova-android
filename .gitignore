@@ -11,3 +11,5 @@ full/
 .acside/
 MainActivity.kt.tmp
 .claude/
+dbg_b1a.py
+*.bak.dbg_b1a
