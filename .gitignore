@@ -13,3 +13,5 @@ MainActivity.kt.tmp
 .claude/
 dbg_b1a.py
 *.bak.dbg_b1a
+dbg_b1b.py
+*.bak.dbg_b1b

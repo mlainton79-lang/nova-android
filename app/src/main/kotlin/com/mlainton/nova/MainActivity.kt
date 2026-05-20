@@ -68,6 +68,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var drawerSyncCodebaseButton: Button
     private lateinit var drawerVintedDraftsButton: Button
     private lateinit var drawerEmailDraftsButton: Button
+    private lateinit var drawerTonyStatusButton: Button
 
     private var tts: TextToSpeech? = null
     private var ttsReady = false
@@ -122,6 +123,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         drawerSyncCodebaseButton = findViewById(R.id.drawerSyncCodebaseButton)
         drawerVintedDraftsButton = findViewById(R.id.drawerVintedDraftsButton)
         drawerEmailDraftsButton = findViewById(R.id.drawerEmailDraftsButton)
+        drawerTonyStatusButton = findViewById(R.id.drawerTonyStatusButton)
 
         currentBrainMode = BrokerPrefs.getBrainMode(this)
         renderBrainMode()
@@ -185,6 +187,14 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         drawerEmailDraftsButton.setOnClickListener {
             drawerLayout.closeDrawer(GravityCompat.START)
             startActivity(Intent(this, EmailDraftListActivity::class.java))
+        }
+
+        // R1.20 Phase B: Tony Status screen entry. Single tap opens the
+        // status view; no long-press behaviour (the status view itself is
+        // the destination, not a launcher).
+        drawerTonyStatusButton.setOnClickListener {
+            drawerLayout.closeDrawer(GravityCompat.START)
+            startActivity(Intent(this, TonyStatusActivity::class.java))
         }
 
         // N1.vinted-3B.3 dev launcher: long-press the email drafts entry to
