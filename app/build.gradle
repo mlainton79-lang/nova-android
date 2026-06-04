@@ -10,10 +10,25 @@ def localPropsFile = rootProject.file("local.properties")
 if (localPropsFile.exists()) {
     localPropsFile.withInputStream { localProps.load(it) }
 }
-def devToken = localProps.getProperty("DEV_TOKEN")
-if (devToken == null || devToken.trim().isEmpty()) {
-    throw new GradleException("DEV_TOKEN not set in local.properties. Add DEV_TOKEN=<value> to this repo's local.properties. The current value is stored in Railway env vars on the web service for the nova-backend project.")
+// DEV_TOKEN resolution: NOVA_DEV_TOKEN env var first, local.properties fallback.
+// The env-var path exists to defeat AIDE silently reverting local.properties
+// to a stale token on project open/refresh.
+def envDevToken = System.getenv("NOVA_DEV_TOKEN")
+def fileDevToken = localProps.getProperty("DEV_TOKEN")
+def envIsSet = envDevToken != null && !envDevToken.trim().isEmpty()
+def devToken = envIsSet ? envDevToken.trim() : fileDevToken?.trim()
+def devTokenSource = envIsSet ? "NOVA_DEV_TOKEN env var" : "local.properties DEV_TOKEN"
+
+if (devToken == null || devToken.isEmpty()) {
+    throw new GradleException(
+        "DEV_TOKEN not set. Either:\n" +
+        "  export NOVA_DEV_TOKEN=<value>, or\n" +
+        "  add DEV_TOKEN=<value> to this repo's local.properties.\n" +
+        "The current value is stored in Railway env vars on the web service for the nova-backend project."
+    )
 }
+
+println "[build] DEV_TOKEN source: ${devTokenSource}"
 
 android {
     namespace 'com.mlainton.nova'
