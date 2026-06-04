@@ -1,26 +1,49 @@
 package com.mlainton.nova
 
 import android.os.Bundle
-import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.viewModels
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.fillMaxSize
 
 /**
- * Tony Status screen (R1.20 Phase B).
+ * Tony Status — the first real Compose screen and the foundation pattern
+ * every future engine screen (capabilities, gaps, builder-pending,
+ * agent-run) will reuse.
  *
- * Will read /api/v1/status and render Tony's operational self-knowledge:
- * health, state, infrastructure, identity. The Run Ledger made visible.
+ * Architecture lock-in (2026-06-04, post-Codex review):
+ * - Compose UI via ComponentActivity + setContent
+ * - kotlinx.serialization for typed JSON parsing (strict config)
+ * - ApiCall<T> sealed for HTTP results, mapped to ScreenLoadState<T> in
+ *   the ViewModel
+ * - ScreenLoadState includes Refreshing<T> so refreshes never blank prior
+ *   diagnostics
+ * - mutableStateOf for ViewModel state exposure (StateFlow deferred)
+ * - Per-source state for partial render
  *
- * B1a: skeleton only - placeholder TextView, no API call yet.
- *      Wired into the drawer in B1b. API call lives in B2.
+ * Launch from the drawer button in MainActivity (single tap).
  */
-class TonyStatusActivity : AppCompatActivity() {
+class TonyStatusActivity : ComponentActivity() {
 
-    private lateinit var placeholderText: TextView
+    private val viewModel: TonyStatusViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_tony_status)
-        placeholderText = findViewById(R.id.tonyStatusPlaceholder)
-        placeholderText.text = "Tony Status — placeholder.\nLive data lands in B2."
+        setContent {
+            MaterialTheme {
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    TonyStatusScreen(
+                        status = viewModel.status,
+                        workerLog = viewModel.workerLog,
+                        onRefresh = viewModel::refresh,
+                        onRetryStatus = viewModel::retryStatus,
+                        onRetryWorkerLog = viewModel::retryWorkerLog,
+                    )
+                }
+            }
+        }
     }
 }

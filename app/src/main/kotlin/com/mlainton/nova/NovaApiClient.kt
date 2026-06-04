@@ -957,6 +957,76 @@ object NovaApiClient {
         }
     }
 
+    // =========================================================================
+    // R2-frontend foundation: engine/admin endpoints typed via kotlinx.serialization.
+    // First consumers: TonyStatusActivity (status + worker_log). Pattern is the
+    // template for the capabilities / gaps / builder-pending screens to follow:
+    // synchronous HTTP, wrap exceptions into ApiCall.Failure, never throw.
+    // =========================================================================
+
+    /**
+     * Tony Status snapshot for the operational screen.
+     *
+     * Returns ApiCall<TonyStatusResult>. Never throws — every failure path
+     * (network, non-2xx, JSON parse, contract drift via strict-mode
+     * SerializationException) collapses into ApiCall.Failure.
+     */
+    fun getTonyStatus(): ApiCall<TonyStatusResult> = httpGetSerialized(
+        path = "/api/v1/status",
+        deserialize = { NovaJson.strict.decodeFromString(TonyStatusResult.serializer(), it) },
+    )
+
+    /**
+     * Recent rows from tony_worker_log.
+     *
+     * @param hours window in hours (defaults to 24, backend caps at 168).
+     */
+    fun getWorkerLogRecent(hours: Int = 24): ApiCall<WorkerLogResult> = httpGetSerialized(
+        path = "/api/v1/admin/worker_log/recent?hours=$hours",
+        deserialize = { NovaJson.strict.decodeFromString(WorkerLogResult.serializer(), it) },
+    )
+
+    /**
+     * Shared HTTP-GET helper for the typed engine endpoints. Bearer auth,
+     * standard timeouts, exception-free contract.
+     *
+     * Deliberately NOT touching the existing HttpURLConnection blocks in
+     * sendChat/sendCouncil/etc. — those have per-method timeouts and
+     * response-shape parsing that would need careful migration. This helper
+     * is opt-in for new typed methods only.
+     */
+    private fun <T> httpGetSerialized(
+        path: String,
+        deserialize: (String) -> T,
+    ): ApiCall<T> {
+        return try {
+            val url = URL("$BASE_URL$path")
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 15000
+                readTimeout = 30000
+                instanceFollowRedirects = true
+                setRequestProperty("Authorization", "Bearer $DEV_TOKEN")
+                setRequestProperty("Accept", "application/json")
+            }
+            val statusCode = connection.responseCode
+            if (statusCode !in 200..299) {
+                val errBody = readAll(connection.errorStream).take(200).ifBlank { "HTTP $statusCode" }
+                return ApiCall.Failure(
+                    message = "HTTP $statusCode: $errBody",
+                    statusCode = statusCode,
+                )
+            }
+            val text = readAll(connection.inputStream)
+            ApiCall.Success(body = deserialize(text))
+        } catch (e: Exception) {
+            ApiCall.Failure(
+                message = e.message ?: "network or parse error",
+                cause = e,
+            )
+        }
+    }
+
     fun scanInboxForDrafts(): DraftScanResult {
         return try {
             val url = URL("$BASE_URL/api/v1/drafts/scan")
