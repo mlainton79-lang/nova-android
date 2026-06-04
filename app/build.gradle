@@ -1,6 +1,8 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 def localProps = new Properties()
@@ -30,6 +32,7 @@ android {
     buildFeatures {
         viewBinding true
         buildConfig true
+        compose true
     }
 
     compileOptions {
@@ -59,4 +62,19 @@ dependencies {
     implementation 'androidx.camera:camera-camera2:1.5.1'
     implementation 'androidx.camera:camera-lifecycle:1.5.1'
     implementation 'androidx.camera:camera-view:1.5.1'
+
+    // Jetpack Compose (R2-frontend smoke test foundation; first consumer is
+    // ComposeSmokeActivity, intended future consumer is TonyStatusActivity).
+    implementation platform(libs.compose.bom)
+    implementation libs.compose.ui
+    implementation libs.compose.ui.graphics
+    implementation libs.compose.ui.tooling.preview
+    implementation libs.compose.material3
+    implementation libs.compose.foundation
+    implementation libs.androidx.activity.compose
+    debugImplementation libs.compose.ui.tooling
+
+    // kotlinx.serialization — typed JSON parsing for engine/admin endpoints.
+    // Strict-by-default config lives in NovaJson.kt.
+    implementation libs.kotlinx.serialization.json
 }
