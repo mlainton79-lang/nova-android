@@ -13,7 +13,8 @@ data class ChatEntry(
     val text: String,
     val createdAt: String,
     val provider: String = "",
-    val debugData: String = ""
+    val debugData: String = "",
+    val failureInfo: String? = null
 )
 
 data class ChatSessionSummary(
@@ -65,7 +66,8 @@ object ChatHistoryStore {
         text: String,
         bumpActivity: Boolean = true,
         provider: String = "",
-        debugData: String = ""
+        debugData: String = "",
+        failureInfo: String? = null
     ) {
         val clean = text.trim()
         if (clean.isEmpty()) return
@@ -83,7 +85,8 @@ object ChatHistoryStore {
             text = clean,
             createdAt = nowText(),
             provider = provider,
-            debugData = debugData
+            debugData = debugData,
+            failureInfo = failureInfo
         ))
 
         if (chat.title.startsWith("Chat ") && role == "user" && shouldUseForTitle(clean)) {
@@ -141,12 +144,15 @@ object ChatHistoryStore {
         val chat = loadSessions(context).firstOrNull { it.id == chatId } ?: return null
         val messagesArray = JSONArray()
         chat.messages.takeLast(300).forEach { msg ->
+            val exportText = if (msg.failureInfo.isNullOrBlank()) msg.text
+                else "${msg.text}\n\n[diagnostic: ${msg.failureInfo}]"
             messagesArray.put(JSONObject().apply {
                 put("role", msg.role)
-                put("text", msg.text)
+                put("text", exportText)
                 put("createdAt", msg.createdAt)
                 put("provider", msg.provider)
                 put("debugData", msg.debugData)
+                if (!msg.failureInfo.isNullOrBlank()) put("failureInfo", msg.failureInfo)
             })
         }
         return JSONObject().apply {
@@ -351,7 +357,9 @@ object ChatHistoryStore {
                     text = m.optString("text", ""),
                     createdAt = m.optString("createdAt", ""),
                     provider = m.optString("provider", ""),
-                    debugData = m.optString("debugData", "")
+                    debugData = m.optString("debugData", ""),
+                    failureInfo = if (m.has("failureInfo") && !m.isNull("failureInfo"))
+                        m.optString("failureInfo").takeIf { it.isNotEmpty() } else null
                 ))
             }
             out.add(StoredChat(
@@ -378,6 +386,7 @@ object ChatHistoryStore {
                     put("createdAt", msg.createdAt)
                     put("provider", msg.provider)
                     put("debugData", msg.debugData)
+                    if (!msg.failureInfo.isNullOrBlank()) put("failureInfo", msg.failureInfo)
                 })
             }
             array.put(JSONObject().apply {

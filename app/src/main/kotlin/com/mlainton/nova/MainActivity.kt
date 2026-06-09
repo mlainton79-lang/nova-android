@@ -1051,6 +1051,36 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             })
         }
 
+        if (!isUser && !message.failureInfo.isNullOrEmpty()) {
+            val failurePanel = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                visibility = View.GONE
+                setBackgroundColor(0xFF2A0808.toInt())
+                setPadding(12, 10, 12, 10)
+            }
+            failurePanel.addView(TextView(this).apply {
+                text = message.failureInfo
+                textSize = 12f
+                setTextColor(0xFFFFB0B0.toInt())
+                setPadding(0, 4, 0, 4)
+                setTextIsSelectable(true)
+            })
+            val indicator = TextView(this).apply {
+                text = "!"
+                textSize = 14f
+                setTypeface(null, android.graphics.Typeface.BOLD)
+                setTextColor(0xFFFFFFFF.toInt())
+                setBackgroundColor(0xFFCC2222.toInt())
+                setPadding(16, 2, 16, 4)
+                setOnClickListener {
+                    failurePanel.visibility =
+                        if (failurePanel.visibility == View.GONE) View.VISIBLE else View.GONE
+                }
+            }
+            row.addView(indicator)
+            row.addView(failurePanel)
+        }
+
         if (!isUser && message.provider == "Council" && message.debugData.isNotEmpty()) {
             val debugPanel = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -2163,7 +2193,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 runOnUiThread {
                     try { chatContainer.removeView(thinkingBubble) } catch (_: Exception) {}
                     val replyText = if (result.reply.isNotBlank()) result.reply
-                        else "Tony couldn't reach the server. Check connection or switch brain."
+                        else "I can't reach my own thoughts right now — give me a moment and try again."
 
                     val debugJson = result.councilDebug?.let { d ->
                         org.json.JSONObject().apply {
@@ -2178,10 +2208,22 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         }.toString()
                     } ?: ""
 
+                    val councilFailures = result.councilDebug?.failures ?: emptyMap()
+                    val failureInfo: String? = if (!result.ok) {
+                        val parts = mutableListOf<String>()
+                        if (!result.error.isNullOrBlank()) parts.add("error: ${result.error}")
+                        if (councilFailures.isNotEmpty()) {
+                            parts.add("failed providers — " + councilFailures.entries.joinToString("; ") { (p, r) -> "$p: $r" })
+                        }
+                        if (parts.isEmpty()) parts.add("council returned ok=false with no detail")
+                        parts.joinToString(" | ")
+                    } else null
+
                     ChatHistoryStore.appendMessage(
                         this, "tony", replyText,
                         provider = provider,
-                        debugData = debugJson
+                        debugData = debugJson,
+                        failureInfo = failureInfo
                     )
                     statusText.text = if (result.ok) "Tony is ready."
                         else "${currentBrainMode.displayName} couldn't connect. Try again."
@@ -2236,8 +2278,12 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 },
                 onDone = { ok, completeText, error, resolvedProvider ->
                     val finalReply = completeText.ifBlank {
-                        "Tony couldn't reach the server. Check connection or switch brain."
+                        "I can't reach my own thoughts right now — give me a moment and try again."
                     }
+                    val failureInfo: String? = if (!ok) {
+                        if (!error.isNullOrBlank()) "error: $error"
+                        else "stream ended without success"
+                    } else null
                     runOnUiThread {
                         chatContainer.removeView(streamingBubble)
                         val providerLabel = if (provider == "auto" && !resolvedProvider.isNullOrBlank()) {
@@ -2248,7 +2294,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         ChatHistoryStore.appendMessage(
                             this, "tony", finalReply,
                             provider = providerLabel,
-                            debugData = ""
+                            debugData = "",
+                            failureInfo = failureInfo
                         )
                         statusText.text = if (ok) "Tony is ready."
                             else "${currentBrainMode.displayName} couldn't connect. Try again."
