@@ -8,12 +8,12 @@ object BrokerPrefs {
 
     fun getBrainMode(context: Context): BrainMode {
         val raw = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getString(KEY_BRAIN_MODE, BrainMode.LOCAL_TONY.name)
+            .getString(KEY_BRAIN_MODE, BrainMode.CLAUDE_MOCK.name)
 
         return try {
-            BrainMode.valueOf(raw ?: BrainMode.LOCAL_TONY.name)
+            BrainMode.valueOf(raw ?: BrainMode.CLAUDE_MOCK.name)
         } catch (_: Exception) {
-            BrainMode.LOCAL_TONY
+            BrainMode.CLAUDE_MOCK
         }
     }
 

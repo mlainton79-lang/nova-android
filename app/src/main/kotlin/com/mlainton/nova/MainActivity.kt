@@ -73,7 +73,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var tts: TextToSpeech? = null
     private var ttsReady = false
     private var tonyMediaPlayer: android.media.MediaPlayer? = null
-    private var currentBrainMode: BrainMode = BrainMode.LOCAL_TONY
+    // Default brain is Claude — verified as Tony's voice provider 2026-06-10.
+    private var currentBrainMode: BrainMode = BrainMode.CLAUDE_MOCK
     private lateinit var markwon: Markwon
 
     private var pendingCameraBase64: String? = null
