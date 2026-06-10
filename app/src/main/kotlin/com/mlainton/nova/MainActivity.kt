@@ -1038,7 +1038,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             setTextColor(if (isUser) 0xFFDDCCFF.toInt() else 0xFFDDDDFF.toInt())
         }
         if (isUser) bubble.text = message.text
-        else markwon.setMarkdown(bubble, message.text)
+        else markwon.setMarkdown(bubble, sanitiseForMarkdown(message.text))
         row.addView(bubble)
 
         if (!isUser && message.provider.isNotEmpty()) {
@@ -1159,6 +1159,21 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             row.addView(debugPanel)
         }
         return row
+    }
+
+    /**
+     * Markwon renders a line that is ONLY an ordered-list marker
+     * (e.g. "204." or "7)") as an empty list item — the text vanishes.
+     * Escape the delimiter on such bare lines so they display literally.
+     * Lines with content after the marker (real lists) are untouched,
+     * as are lines indented 4+ spaces or by tab (CommonMark code blocks,
+     * which already render text literally).
+     */
+    private fun sanitiseForMarkdown(text: String): String {
+        val bareOrderedItem = Regex("""(?m)^([ ]{0,3})(\d{1,9})([.)])[ \t]*$""")
+        return bareOrderedItem.replace(text) { m ->
+            "${m.groupValues[1]}${m.groupValues[2]}\\${m.groupValues[3]}"
+        }
     }
 
     private fun scrollChatToBottom() {
