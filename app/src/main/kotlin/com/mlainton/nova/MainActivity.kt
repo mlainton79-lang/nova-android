@@ -66,6 +66,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var drawerCloseButton: Button
     private lateinit var drawerNewChatButton: Button
     private lateinit var drawerSyncCodebaseButton: Button
+    private lateinit var drawerSyncCalendarButton: Button
     private lateinit var drawerVintedDraftsButton: Button
     private lateinit var drawerEmailDraftsButton: Button
     private lateinit var drawerTonyStatusButton: Button
@@ -93,6 +94,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         private const val VINTED_CAPTURE_REQUEST = 1004
         private const val CAMERA_PERMISSION_REQUEST = 2001
         private const val LOCATION_PERMISSION_REQUEST = 2002
+        private const val CALENDAR_PERMISSION_REQUEST = 2003
         private const val DEFAULT_INPUT_HINT = "Message Tony..."
         private const val CAMERA_INPUT_HINT = "Ask Tony about this image..."
         private const val FILE_INPUT_HINT = "Ask Tony about this file..."
@@ -122,6 +124,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         drawerCloseButton = findViewById(R.id.drawerCloseButton)
         drawerNewChatButton = findViewById(R.id.drawerNewChatButton)
         drawerSyncCodebaseButton = findViewById(R.id.drawerSyncCodebaseButton)
+        drawerSyncCalendarButton = findViewById(R.id.drawerSyncCalendarButton)
         drawerVintedDraftsButton = findViewById(R.id.drawerVintedDraftsButton)
         drawerEmailDraftsButton = findViewById(R.id.drawerEmailDraftsButton)
         drawerTonyStatusButton = findViewById(R.id.drawerTonyStatusButton)
@@ -167,6 +170,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         drawerSyncCodebaseButton.setOnClickListener {
             drawerLayout.closeDrawer(GravityCompat.START)
             syncCodebaseToTony()
+        }
+
+        drawerSyncCalendarButton.setOnClickListener {
+            drawerLayout.closeDrawer(GravityCompat.START)
+            syncCalendarManually()
         }
 
         drawerVintedDraftsButton.setOnClickListener {
@@ -240,6 +248,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         tts = TextToSpeech(this, this)
         fetchLocationInBackground()
         requestCalendarPermission()
+        syncCalendarToBackend()
         // Initialise on-device model if downloaded
         Thread {
             if (OnDeviceModel.isModelDownloaded(this)) {
@@ -1466,7 +1475,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALENDAR)
             != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(
-                this, arrayOf(Manifest.permission.READ_CALENDAR), 2003
+                this, arrayOf(Manifest.permission.READ_CALENDAR), CALENDAR_PERMISSION_REQUEST
             )
         }
     }
@@ -1475,7 +1484,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALENDAR)
             != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(
-                this, arrayOf(Manifest.permission.READ_CALENDAR), 2003
+                this, arrayOf(Manifest.permission.READ_CALENDAR), CALENDAR_PERMISSION_REQUEST
             )
             return ""
         }
@@ -1531,6 +1540,108 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             android.util.Log.e("TONY_CALENDAR", "Calendar read failed: ${e.message}")
             ""
         }
+    }
+
+    private fun readDeviceCalendarStructured(): List<NovaApiClient.CalendarEvent> {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALENDAR)
+            != PackageManager.PERMISSION_GRANTED) {
+            return emptyList()
+        }
+        return try {
+            val now = System.currentTimeMillis()
+            val startOfToday = java.util.Calendar.getInstance().apply {
+                set(java.util.Calendar.HOUR_OF_DAY, 0)
+                set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+            }.timeInMillis
+            val weekAhead = now + (7 * 24 * 60 * 60 * 1000L)
+            val uri = android.provider.CalendarContract.Events.CONTENT_URI
+            val projection = arrayOf(
+                android.provider.CalendarContract.Events._ID,
+                android.provider.CalendarContract.Events.CALENDAR_ID,
+                android.provider.CalendarContract.Events.TITLE,
+                android.provider.CalendarContract.Events.DTSTART,
+                android.provider.CalendarContract.Events.DTEND,
+                android.provider.CalendarContract.Events.EVENT_LOCATION,
+                android.provider.CalendarContract.Events.DESCRIPTION,
+                android.provider.CalendarContract.Events.ALL_DAY
+            )
+            val selection = "${android.provider.CalendarContract.Events.DTSTART} >= ? AND ${android.provider.CalendarContract.Events.DTSTART} <= ? AND ${android.provider.CalendarContract.Events.DELETED} = 0"
+            val cursor = contentResolver.query(uri, projection, selection, arrayOf(startOfToday.toString(), weekAhead.toString()), "${android.provider.CalendarContract.Events.DTSTART} ASC")
+            val events = mutableListOf<NovaApiClient.CalendarEvent>()
+            cursor?.use {
+                val idIdx = it.getColumnIndex(android.provider.CalendarContract.Events._ID)
+                val calIdx = it.getColumnIndex(android.provider.CalendarContract.Events.CALENDAR_ID)
+                val titleIdx = it.getColumnIndex(android.provider.CalendarContract.Events.TITLE)
+                val startIdx = it.getColumnIndex(android.provider.CalendarContract.Events.DTSTART)
+                val endIdx = it.getColumnIndex(android.provider.CalendarContract.Events.DTEND)
+                val locationIdx = it.getColumnIndex(android.provider.CalendarContract.Events.EVENT_LOCATION)
+                val descIdx = it.getColumnIndex(android.provider.CalendarContract.Events.DESCRIPTION)
+                val allDayIdx = it.getColumnIndex(android.provider.CalendarContract.Events.ALL_DAY)
+                while (it.moveToNext()) {
+                    events.add(
+                        NovaApiClient.CalendarEvent(
+                            eventId = it.getLong(idIdx),
+                            calendarId = it.getLong(calIdx),
+                            title = it.getString(titleIdx) ?: "Untitled",
+                            startMs = it.getLong(startIdx),
+                            endMs = it.getLong(endIdx),
+                            allDay = it.getInt(allDayIdx) == 1,
+                            location = it.getString(locationIdx),
+                            description = it.getString(descIdx)
+                        )
+                    )
+                }
+            }
+            events
+        } catch (e: Exception) {
+            android.util.Log.e("TONY_CALENDAR", "Structured calendar read failed: ${e.message}")
+            emptyList()
+        }
+    }
+
+    private fun syncCalendarToBackend() {
+        Thread {
+            val events = readDeviceCalendarStructured()
+            if (events.isEmpty()) return@Thread
+            val result = NovaApiClient.syncCalendarEvents(events)
+            if (result.ok) {
+                android.util.Log.d("TONY_CALENDAR", "Synced ${result.syncedCount}/${events.size} events to backend")
+            } else {
+                android.util.Log.w("TONY_CALENDAR", "Calendar sync failed: ${result.error}")
+            }
+        }.start()
+    }
+
+    private fun syncCalendarManually() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALENDAR)
+            != PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, "Calendar permission not granted.", Toast.LENGTH_SHORT).show()
+            requestCalendarPermission()
+            return
+        }
+        statusText.text = "Syncing calendar..."
+        Thread {
+            val events = readDeviceCalendarStructured()
+            if (events.isEmpty()) {
+                runOnUiThread {
+                    statusText.text = "No upcoming events to sync"
+                    Toast.makeText(this, "No upcoming events.", Toast.LENGTH_SHORT).show()
+                }
+                return@Thread
+            }
+            val result = NovaApiClient.syncCalendarEvents(events)
+            runOnUiThread {
+                if (result.ok) {
+                    statusText.text = "Synced ${result.syncedCount} calendar events"
+                    Toast.makeText(this, "Synced ${result.syncedCount} events to Tony.", Toast.LENGTH_SHORT).show()
+                } else {
+                    statusText.text = "Calendar sync failed"
+                    Toast.makeText(this, "Calendar sync failed: ${result.error ?: "unknown"}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }.start()
     }
 
     private fun speakTony(text: String) {
@@ -1652,6 +1763,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         if (requestCode == LOCATION_PERMISSION_REQUEST) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 fetchLocationInBackground()
+            }
+        }
+        if (requestCode == CALENDAR_PERMISSION_REQUEST) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                syncCalendarToBackend()
             }
         }
     }

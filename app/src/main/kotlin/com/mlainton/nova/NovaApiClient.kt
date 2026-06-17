@@ -1068,4 +1068,69 @@ object NovaApiClient {
             DraftScanResult(false, error = e.message ?: "network error")
         }
     }
+
+    data class CalendarEvent(
+        val eventId: Long,
+        val calendarId: Long,
+        val title: String,
+        val startMs: Long,
+        val endMs: Long,
+        val allDay: Boolean,
+        val location: String?,
+        val description: String?
+    )
+
+    data class CalendarSyncResult(
+        val ok: Boolean,
+        val syncedCount: Int = 0,
+        val error: String? = null
+    )
+
+    fun syncCalendarEvents(events: List<CalendarEvent>): CalendarSyncResult {
+        return try {
+            val url = URL("$BASE_URL/api/v1/calendar/sync")
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 30000
+                readTimeout = 60000
+                doOutput = true
+                instanceFollowRedirects = true
+                setRequestProperty("Authorization", "Bearer $DEV_TOKEN")
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Accept", "application/json")
+            }
+
+            val eventsArray = JSONArray()
+            events.forEach { e ->
+                eventsArray.put(JSONObject().apply {
+                    put("event_id", e.eventId)
+                    put("calendar_id", e.calendarId)
+                    put("title", e.title)
+                    put("start_ms", e.startMs)
+                    put("end_ms", e.endMs)
+                    put("all_day", e.allDay)
+                    if (!e.location.isNullOrBlank()) put("location", e.location)
+                    if (!e.description.isNullOrBlank()) put("description", e.description)
+                })
+            }
+            val body = JSONObject().apply { put("events", eventsArray) }
+            connection.outputStream.use { it.write(body.toString().toByteArray()); it.flush() }
+
+            val statusCode = connection.responseCode
+            val responseText = readAll(if (statusCode in 200..299) connection.inputStream else connection.errorStream)
+            val httpOk = statusCode in 200..299
+            val json = parseJsonOrNull(responseText)
+            val ok = if (json != null && json.has("ok")) json.optBoolean("ok", httpOk) else httpOk
+            CalendarSyncResult(
+                ok = ok,
+                syncedCount = json?.optInt("synced_count", 0) ?: 0,
+                error = if (!ok) {
+                    json?.optString("error", null)
+                        ?: responseText.take(200).ifBlank { "HTTP $statusCode" }
+                } else null
+            )
+        } catch (e: Exception) {
+            CalendarSyncResult(false, error = e.message ?: "network error")
+        }
+    }
 }
