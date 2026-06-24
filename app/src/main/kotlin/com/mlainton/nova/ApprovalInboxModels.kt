@@ -14,6 +14,7 @@ data class ApprovalInboxResult(
 /** Only fields explicitly approved for display are represented here. */
 @Serializable
 data class PendingApproval(
+    @SerialName("pending_id") val pendingId: String,
     @SerialName("capability_key") val capabilityKey: String,
     val status: String,
     @SerialName("expires_at") val expiresAt: String,
@@ -24,4 +25,13 @@ data class PendingApproval(
 data class ApprovalActionSnapshot(
     @SerialName("step_summary") val stepSummary: String? = null,
     @SerialName("action_type") val actionType: String? = null,
+)
+
+/** Sanitized response from the rejection endpoint. */
+@Serializable
+data class ApprovalRejectResult(
+    val ok: Boolean,
+    val rejected: Boolean,
+    val status: String,
+    val message: String,
 )

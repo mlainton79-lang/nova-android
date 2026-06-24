@@ -2,6 +2,7 @@ package com.mlainton.nova
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.net.Uri
 import android.util.Base64
 import org.json.JSONArray
 import org.json.JSONObject
@@ -994,6 +995,52 @@ object NovaApiClient {
             NovaJson.safeReadModel.decodeFromString(ApprovalInboxResult.serializer(), it)
         },
     )
+
+    /** Reject one pending approval without approving or executing it. */
+    fun rejectPendingApproval(pendingId: String): ApiCall<ApprovalRejectResult> {
+        if (pendingId.isBlank()) {
+            return ApiCall.Failure(message = "Could not reject this approval.")
+        }
+        val encodedId = Uri.encode(pendingId)
+        return httpPostSerialized(
+            path = "/api/v1/approvals/$encodedId/reject",
+            deserialize = {
+                NovaJson.safeReadModel.decodeFromString(ApprovalRejectResult.serializer(), it)
+            },
+        )
+    }
+
+    /** Bodyless POST helper for the approval rejection endpoint. */
+    private fun <T> httpPostSerialized(
+        path: String,
+        deserialize: (String) -> T,
+    ): ApiCall<T> {
+        return try {
+            val url = URL("$BASE_URL$path")
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 15000
+                readTimeout = 30000
+                instanceFollowRedirects = true
+                setRequestProperty("Authorization", "Bearer $DEV_TOKEN")
+                setRequestProperty("Accept", "application/json")
+            }
+            val statusCode = connection.responseCode
+            if (statusCode !in 200..299) {
+                return ApiCall.Failure(
+                    message = "Could not reject this approval (HTTP $statusCode).",
+                    statusCode = statusCode,
+                )
+            }
+            val text = readAll(connection.inputStream)
+            ApiCall.Success(body = deserialize(text))
+        } catch (e: Exception) {
+            ApiCall.Failure(
+                message = "Could not reject this approval. Check your connection and try again.",
+                cause = e,
+            )
+        }
+    }
 
     /**
      * Shared HTTP-GET helper for the typed engine endpoints. Bearer auth,

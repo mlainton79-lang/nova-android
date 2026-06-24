@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -27,7 +28,10 @@ import com.mlainton.nova.ui.ScreenLoadState
 @Composable
 fun ApprovalInboxScreen(
     state: ScreenLoadState<ApprovalInboxResult>,
+    rejectingIds: Set<String>,
+    rejectionError: String?,
     onRefresh: () -> Unit,
+    onReject: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -53,6 +57,15 @@ fun ApprovalInboxScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            if (rejectionError != null) {
+                item {
+                    Text(
+                        text = rejectionError,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
             item {
                 LoadStateSection(
                     title = "Pending approvals",
@@ -62,7 +75,13 @@ fun ApprovalInboxScreen(
                     empty = { Text("No approvals waiting", modifier = Modifier.padding(top = 12.dp)) },
                 ) { result ->
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        result.pendingApprovals.forEach { approval -> ApprovalCard(approval) }
+                        result.pendingApprovals.forEach { approval ->
+                            ApprovalCard(
+                                approval = approval,
+                                isRejecting = approval.pendingId in rejectingIds,
+                                onReject = { onReject(approval.pendingId) },
+                            )
+                        }
                     }
                 }
             }
@@ -71,7 +90,11 @@ fun ApprovalInboxScreen(
 }
 
 @Composable
-private fun ApprovalCard(approval: PendingApproval) {
+private fun ApprovalCard(
+    approval: PendingApproval,
+    isRejecting: Boolean,
+    onReject: () -> Unit,
+) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -86,6 +109,13 @@ private fun ApprovalCard(approval: PendingApproval) {
             approval.actionSnapshot?.actionType
                 ?.takeIf { it.isNotBlank() }
                 ?.let { ApprovalField("Action type", it) }
+            Button(
+                onClick = onReject,
+                enabled = !isRejecting,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(if (isRejecting) "Rejecting…" else "Reject")
+            }
         }
     }
 }
