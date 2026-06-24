@@ -74,6 +74,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var drawerVintedDraftsButton: Button
     private lateinit var drawerEmailDraftsButton: Button
     private lateinit var drawerTonyStatusButton: Button
+    private lateinit var drawerApprovalInboxButton: Button
 
     private var tts: TextToSpeech? = null
     private var ttsReady = false
@@ -137,6 +138,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         drawerVintedDraftsButton = findViewById(R.id.drawerVintedDraftsButton)
         drawerEmailDraftsButton = findViewById(R.id.drawerEmailDraftsButton)
         drawerTonyStatusButton = findViewById(R.id.drawerTonyStatusButton)
+        drawerApprovalInboxButton = findViewById(R.id.drawerApprovalInboxButton)
 
         currentBrainMode = BrokerPrefs.getBrainMode(this)
         renderBrainMode()
@@ -213,6 +215,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         drawerTonyStatusButton.setOnClickListener {
             drawerLayout.closeDrawer(GravityCompat.START)
             startActivity(Intent(this, TonyStatusActivity::class.java))
+        }
+
+        drawerApprovalInboxButton.setOnClickListener {
+            drawerLayout.closeDrawer(GravityCompat.START)
+            startActivity(Intent(this, ApprovalInboxActivity::class.java))
         }
 
         // N1.vinted-3B.3 dev launcher: long-press the email drafts entry to

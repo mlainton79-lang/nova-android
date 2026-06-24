@@ -29,4 +29,15 @@ object NovaJson {
         explicitNulls = false
         isLenient = false
     }
+
+    /**
+     * Additive-compatible decoding for user-facing read models. The approval
+     * inbox deliberately models only fields that are safe to render; all
+     * other backend fields are discarded during decoding.
+     */
+    val safeReadModel: Json = Json {
+        ignoreUnknownKeys = true
+        explicitNulls = false
+        isLenient = false
+    }
 }

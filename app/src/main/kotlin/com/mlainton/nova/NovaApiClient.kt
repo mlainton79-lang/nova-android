@@ -986,6 +986,15 @@ object NovaApiClient {
         deserialize = { NovaJson.strict.decodeFromString(WorkerLogResult.serializer(), it) },
     )
 
+    /** Read-only, sanitized view of approvals currently waiting for review. */
+    fun getPendingApprovals(): ApiCall<ApprovalInboxResult> = httpGetSerialized(
+        path = "/api/v1/approvals/pending",
+        safeFailureMessages = true,
+        deserialize = {
+            NovaJson.safeReadModel.decodeFromString(ApprovalInboxResult.serializer(), it)
+        },
+    )
+
     /**
      * Shared HTTP-GET helper for the typed engine endpoints. Bearer auth,
      * standard timeouts, exception-free contract.
@@ -997,6 +1006,7 @@ object NovaApiClient {
      */
     private fun <T> httpGetSerialized(
         path: String,
+        safeFailureMessages: Boolean = false,
         deserialize: (String) -> T,
     ): ApiCall<T> {
         return try {
@@ -1011,9 +1021,14 @@ object NovaApiClient {
             }
             val statusCode = connection.responseCode
             if (statusCode !in 200..299) {
-                val errBody = readAll(connection.errorStream).take(200).ifBlank { "HTTP $statusCode" }
+                val message = if (safeFailureMessages) {
+                    "Could not load approvals (HTTP $statusCode)."
+                } else {
+                    val errBody = readAll(connection.errorStream).take(200).ifBlank { "HTTP $statusCode" }
+                    "HTTP $statusCode: $errBody"
+                }
                 return ApiCall.Failure(
-                    message = "HTTP $statusCode: $errBody",
+                    message = message,
                     statusCode = statusCode,
                 )
             }
@@ -1021,7 +1036,11 @@ object NovaApiClient {
             ApiCall.Success(body = deserialize(text))
         } catch (e: Exception) {
             ApiCall.Failure(
-                message = e.message ?: "network or parse error",
+                message = if (safeFailureMessages) {
+                    "Could not load approvals. Check your connection and try again."
+                } else {
+                    e.message ?: "network or parse error"
+                },
                 cause = e,
             )
         }
