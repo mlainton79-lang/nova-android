@@ -1086,6 +1086,44 @@ object NovaApiClient {
         val error: String? = null
     )
 
+    data class PushTokenRegistrationResult(
+        val ok: Boolean,
+        val error: String? = null,
+    )
+
+    fun registerPushToken(token: String): PushTokenRegistrationResult {
+        return try {
+            val url = URL("$BASE_URL/api/v1/push/register")
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 30000
+                readTimeout = 30000
+                doOutput = true
+                instanceFollowRedirects = true
+                setRequestProperty("Authorization", "Bearer $DEV_TOKEN")
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Accept", "application/json")
+            }
+            val body = JSONObject().apply {
+                put("token", token)
+                put("platform", "android")
+                put("app_package", "com.mlainton.nova")
+                put("source", "nova_android")
+                put("device_model", android.os.Build.MODEL)
+                put("sdk_int", android.os.Build.VERSION.SDK_INT)
+            }
+            connection.outputStream.use { it.write(body.toString().toByteArray()); it.flush() }
+            val statusCode = connection.responseCode
+            val responseText = readAll(if (statusCode in 200..299) connection.inputStream else connection.errorStream)
+            val httpOk = statusCode in 200..299
+            val json = parseJsonOrNull(responseText)
+            val ok = if (json != null && json.has("ok")) json.optBoolean("ok", httpOk) else httpOk
+            PushTokenRegistrationResult(ok, if (!ok) "HTTP $statusCode" else null)
+        } catch (e: Exception) {
+            PushTokenRegistrationResult(false, e.message ?: "network error")
+        }
+    }
+
     fun syncCalendarEvents(events: List<CalendarEvent>): CalendarSyncResult {
         return try {
             val url = URL("$BASE_URL/api/v1/calendar/sync")

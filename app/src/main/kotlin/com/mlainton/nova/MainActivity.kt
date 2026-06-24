@@ -1,6 +1,8 @@
 package com.mlainton.nova
 
 import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -10,6 +12,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
@@ -38,6 +41,7 @@ import androidx.drawerlayout.widget.DrawerLayout
 import androidx.exifinterface.media.ExifInterface
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.firebase.messaging.FirebaseMessaging
 import io.noties.markwon.Markwon
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -95,6 +99,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         private const val CAMERA_PERMISSION_REQUEST = 2001
         private const val LOCATION_PERMISSION_REQUEST = 2002
         private const val CALENDAR_PERMISSION_REQUEST = 2003
+        private const val NOTIFICATION_PERMISSION_REQUEST = 2004
+        private const val PUSH_CHANNEL_ID = "nova_push"
         private const val DEFAULT_INPUT_HINT = "Message Tony..."
         private const val CAMERA_INPUT_HINT = "Ask Tony about this image..."
         private const val FILE_INPUT_HINT = "Ask Tony about this file..."
@@ -103,6 +109,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        createPushNotificationChannel()
+        requestNotificationPermission()
 
         markwon = Markwon.create(this)
 
@@ -260,6 +269,50 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             VintedDraftStore.cleanStale(applicationContext)
         }.start()
         renderChatHistory()
+        registerCurrentPushToken()
+    }
+
+    private fun createPushNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                PUSH_CHANNEL_ID,
+                "Nova push notifications",
+                NotificationManager.IMPORTANCE_DEFAULT,
+            ).apply {
+                description = "Updates and alerts from Nova"
+            }
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        }
+    }
+
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                NOTIFICATION_PERMISSION_REQUEST,
+            )
+        }
+    }
+
+    private fun registerCurrentPushToken() {
+        FirebaseMessaging.getInstance().token
+            .addOnSuccessListener { token ->
+                Thread {
+                    val result = NovaApiClient.registerPushToken(token)
+                    if (result.ok) {
+                        android.util.Log.d("NOVA_PUSH", "FCM token registered (length=${token.length})")
+                    } else {
+                        android.util.Log.w("NOVA_PUSH", "FCM token registration failed")
+                    }
+                }.start()
+            }
+            .addOnFailureListener { error ->
+                android.util.Log.w("NOVA_PUSH", "Unable to fetch FCM token: ${error.message}")
+            }
     }
 
     private fun syncCodebaseToTony() {
