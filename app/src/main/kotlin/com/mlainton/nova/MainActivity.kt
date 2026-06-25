@@ -105,6 +105,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         private const val DEFAULT_INPUT_HINT = "Message Tony..."
         private const val CAMERA_INPUT_HINT = "Ask Tony about this image..."
         private const val FILE_INPUT_HINT = "Ask Tony about this file..."
+        private const val EXTRA_TARGET_SCREEN = NovaFirebaseMessagingService.EXTRA_TARGET_SCREEN
+        private const val TARGET_APPROVAL_INBOX = NovaFirebaseMessagingService.TARGET_APPROVAL_INBOX
+        private const val EXTRA_NOTIFICATION_ROUTE_CONSUMED = "notification_route_consumed"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -142,6 +145,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
         currentBrainMode = BrokerPrefs.getBrainMode(this)
         renderBrainMode()
+        routeNotificationIntent(intent)
 
         val recycler = findViewById<RecyclerView>(R.id.chatListRecycler)
         recycler.layoutManager = LinearLayoutManager(this)
@@ -353,6 +357,25 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 }
             }
         }.start()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        routeNotificationIntent(intent)
+    }
+
+    private fun routeNotificationIntent(intent: Intent?) {
+        val incomingIntent = intent ?: return
+        if (incomingIntent.getStringExtra(EXTRA_TARGET_SCREEN) != TARGET_APPROVAL_INBOX) {
+            return
+        }
+        if (incomingIntent.getBooleanExtra(EXTRA_NOTIFICATION_ROUTE_CONSUMED, false)) {
+            return
+        }
+
+        incomingIntent.putExtra(EXTRA_NOTIFICATION_ROUTE_CONSUMED, true)
+        startActivity(Intent(this, ApprovalInboxActivity::class.java))
     }
 
     override fun onResume() {

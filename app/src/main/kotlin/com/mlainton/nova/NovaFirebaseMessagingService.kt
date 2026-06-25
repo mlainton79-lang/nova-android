@@ -28,12 +28,21 @@ class NovaFirebaseMessagingService : FirebaseMessagingService() {
 
         val title = message.notification?.title?.takeIf { it.isNotBlank() } ?: DEFAULT_TITLE
         val body = message.notification?.body?.takeIf { it.isNotBlank() } ?: DEFAULT_BODY
-        val launchIntent = Intent(this, MainActivity::class.java).apply {
+        val targetScreen = message.data[EXTRA_TARGET_SCREEN].orEmpty()
+        val notificationType = message.data[EXTRA_NOTIFICATION_TYPE].orEmpty()
+        val targetActivity = when (targetScreen) {
+            TARGET_APPROVAL_INBOX -> ApprovalInboxActivity::class.java
+            else -> MainActivity::class.java
+        }
+        val launchIntent = Intent(this, targetActivity).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra(EXTRA_TARGET_SCREEN, targetScreen)
+            putExtra(EXTRA_NOTIFICATION_TYPE, notificationType)
+            putExtra(EXTRA_FROM_NOTIFICATION, true)
         }
         val pendingIntent = PendingIntent.getActivity(
             this,
-            0,
+            nextNotificationRequestCode(),
             launchIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
@@ -80,6 +89,12 @@ class NovaFirebaseMessagingService : FirebaseMessagingService() {
         private const val PUSH_CHANNEL_ID = "nova_push"
         private const val DEFAULT_TITLE = "Nova"
         private const val DEFAULT_BODY = "You have a new Nova notification."
+        const val EXTRA_TARGET_SCREEN = "target_screen"
+        const val EXTRA_NOTIFICATION_TYPE = "notification_type"
+        const val EXTRA_FROM_NOTIFICATION = "from_notification"
+        const val TARGET_APPROVAL_INBOX = "approval_inbox"
         private val notificationIds = AtomicInteger()
+
+        private fun nextNotificationRequestCode(): Int = notificationIds.incrementAndGet()
     }
 }
