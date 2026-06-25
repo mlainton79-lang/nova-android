@@ -3,18 +3,21 @@ package com.mlainton.nova
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Card
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -28,9 +31,12 @@ import com.mlainton.nova.ui.ScreenLoadState
 @Composable
 fun ApprovalInboxScreen(
     state: ScreenLoadState<ApprovalInboxResult>,
+    approvingIds: Set<String>,
     rejectingIds: Set<String>,
+    approvalError: String?,
     rejectionError: String?,
     onRefresh: () -> Unit,
+    onApprove: (String) -> Unit,
     onReject: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -57,6 +63,15 @@ fun ApprovalInboxScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            if (approvalError != null) {
+                item {
+                    Text(
+                        text = approvalError,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
             if (rejectionError != null) {
                 item {
                     Text(
@@ -78,7 +93,9 @@ fun ApprovalInboxScreen(
                         result.pendingApprovals.forEach { approval ->
                             ApprovalCard(
                                 approval = approval,
+                                isApproving = approval.pendingId in approvingIds,
                                 isRejecting = approval.pendingId in rejectingIds,
+                                onApprove = { onApprove(approval.pendingId) },
                                 onReject = { onReject(approval.pendingId) },
                             )
                         }
@@ -92,7 +109,9 @@ fun ApprovalInboxScreen(
 @Composable
 private fun ApprovalCard(
     approval: PendingApproval,
+    isApproving: Boolean,
     isRejecting: Boolean,
+    onApprove: () -> Unit,
     onReject: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -109,12 +128,24 @@ private fun ApprovalCard(
             approval.actionSnapshot?.actionType
                 ?.takeIf { it.isNotBlank() }
                 ?.let { ApprovalField("Action type", it) }
-            Button(
-                onClick = onReject,
-                enabled = !isRejecting,
+            Row(
                 modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text(if (isRejecting) "Rejecting…" else "Reject")
+                Button(
+                    onClick = onApprove,
+                    enabled = !isApproving && !isRejecting,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(if (isApproving) "Approving…" else "Approve")
+                }
+                OutlinedButton(
+                    onClick = onReject,
+                    enabled = !isRejecting && !isApproving,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(if (isRejecting) "Rejecting…" else "Reject")
+                }
             }
         }
     }

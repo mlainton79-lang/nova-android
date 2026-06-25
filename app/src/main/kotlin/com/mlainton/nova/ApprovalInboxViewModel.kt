@@ -15,7 +15,13 @@ class ApprovalInboxViewModel : ViewModel() {
     var state: ScreenLoadState<ApprovalInboxResult> by mutableStateOf(ScreenLoadState.Loading)
         private set
 
+    var approvingIds: Set<String> by mutableStateOf(emptySet())
+        private set
+
     var rejectingIds: Set<String> by mutableStateOf(emptySet())
+        private set
+
+    var approvalError: String? by mutableStateOf(null)
         private set
 
     var rejectionError: String? by mutableStateOf(null)
@@ -26,6 +32,7 @@ class ApprovalInboxViewModel : ViewModel() {
     }
 
     fun refresh() {
+        approvalError = null
         rejectionError = null
         val previous = when (val current = state) {
             is ScreenLoadState.Loaded -> current.data
@@ -51,10 +58,38 @@ class ApprovalInboxViewModel : ViewModel() {
         }
     }
 
+    fun approve(pendingId: String) {
+        if (pendingId in approvingIds || pendingId in rejectingIds) return
+
+        approvingIds = approvingIds + pendingId
+        approvalError = null
+        rejectionError = null
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                NovaApiClient.approvePendingApproval(pendingId)
+            }
+            approvingIds = approvingIds - pendingId
+            when (result) {
+                is ApiCall.Success -> {
+                    if (result.body.ok && result.body.approved) {
+                        removeFromCurrentInbox(pendingId)
+                        refresh()
+                    } else {
+                        approvalError = "This approval could not be approved. Refresh and try again."
+                    }
+                }
+                is ApiCall.Failure -> {
+                    approvalError = result.message
+                }
+            }
+        }
+    }
+
     fun reject(pendingId: String) {
-        if (pendingId in rejectingIds) return
+        if (pendingId in rejectingIds || pendingId in approvingIds) return
 
         rejectingIds = rejectingIds + pendingId
+        approvalError = null
         rejectionError = null
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {

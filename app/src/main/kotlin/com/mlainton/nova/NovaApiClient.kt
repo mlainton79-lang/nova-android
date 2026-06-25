@@ -1004,15 +1004,32 @@ object NovaApiClient {
         val encodedId = Uri.encode(pendingId)
         return httpPostSerialized(
             path = "/api/v1/approvals/$encodedId/reject",
+            failureVerb = "reject",
             deserialize = {
                 NovaJson.safeReadModel.decodeFromString(ApprovalRejectResult.serializer(), it)
             },
         )
     }
 
-    /** Bodyless POST helper for the approval rejection endpoint. */
+    /** Mark one pending approval as approved without executing or resuming it. */
+    fun approvePendingApproval(pendingId: String): ApiCall<ApprovalApproveResult> {
+        if (pendingId.isBlank()) {
+            return ApiCall.Failure(message = "Could not approve this approval.")
+        }
+        val encodedId = Uri.encode(pendingId)
+        return httpPostSerialized(
+            path = "/api/v1/approvals/$encodedId/approve",
+            failureVerb = "approve",
+            deserialize = {
+                NovaJson.safeReadModel.decodeFromString(ApprovalApproveResult.serializer(), it)
+            },
+        )
+    }
+
+    /** Bodyless POST helper for approval mark-only endpoints. */
     private fun <T> httpPostSerialized(
         path: String,
+        failureVerb: String,
         deserialize: (String) -> T,
     ): ApiCall<T> {
         return try {
@@ -1028,7 +1045,7 @@ object NovaApiClient {
             val statusCode = connection.responseCode
             if (statusCode !in 200..299) {
                 return ApiCall.Failure(
-                    message = "Could not reject this approval (HTTP $statusCode).",
+                    message = "Could not $failureVerb this approval (HTTP $statusCode).",
                     statusCode = statusCode,
                 )
             }
@@ -1036,7 +1053,7 @@ object NovaApiClient {
             ApiCall.Success(body = deserialize(text))
         } catch (e: Exception) {
             ApiCall.Failure(
-                message = "Could not reject this approval. Check your connection and try again.",
+                message = "Could not $failureVerb this approval. Check your connection and try again.",
                 cause = e,
             )
         }

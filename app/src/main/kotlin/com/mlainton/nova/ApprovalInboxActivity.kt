@@ -20,9 +20,12 @@ class ApprovalInboxActivity : ComponentActivity() {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     ApprovalInboxScreen(
                         state = viewModel.state,
+                        approvingIds = viewModel.approvingIds,
                         rejectingIds = viewModel.rejectingIds,
+                        approvalError = viewModel.approvalError,
                         rejectionError = viewModel.rejectionError,
                         onRefresh = viewModel::refresh,
+                        onApprove = viewModel::approve,
                         onReject = viewModel::reject,
                     )
                 }

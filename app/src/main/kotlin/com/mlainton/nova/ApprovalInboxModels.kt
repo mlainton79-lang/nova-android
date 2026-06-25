@@ -35,3 +35,12 @@ data class ApprovalRejectResult(
     val status: String,
     val message: String,
 )
+
+/** Sanitized response from the mark-only approval endpoint. */
+@Serializable
+data class ApprovalApproveResult(
+    val ok: Boolean,
+    val approved: Boolean,
+    val status: String,
+    val message: String,
+)
