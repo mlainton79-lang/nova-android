@@ -1563,6 +1563,27 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
+
+    private fun calendarWindowStartTodayToWeek(): Pair<Long, Long> {
+        val startOfToday = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val weekAhead = startOfToday + (7L * 24L * 60L * 60L * 1000L)
+        return Pair(startOfToday, weekAhead)
+    }
+
+    private fun calendarInstancesUri(startMs: Long, endMs: Long): android.net.Uri {
+        val builder = android.provider.CalendarContract.Instances.CONTENT_URI.buildUpon()
+        android.content.ContentUris.appendId(builder, startMs)
+        android.content.ContentUris.appendId(builder, endMs)
+        return builder.build()
+    }
+
+
+
     private fun readDeviceCalendar(): String {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALENDAR)
             != PackageManager.PERMISSION_GRANTED) {
@@ -1572,47 +1593,49 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             return ""
         }
         return try {
-            val now = System.currentTimeMillis()
-            // N1.calendar-fix-A: lower bound is start of today (00:00 local)
-            // not now, so events that already started today (school run, work
-            // shifts in progress, etc) are included in Tony's calendar context.
-            // If Matthew asks at 18:00 "what have I got on today?" he should
-            // still see this morning's school run, not just events still
-            // in progress.
-            val startOfToday = java.util.Calendar.getInstance().apply {
-                set(java.util.Calendar.HOUR_OF_DAY, 0)
-                set(java.util.Calendar.MINUTE, 0)
-                set(java.util.Calendar.SECOND, 0)
-                set(java.util.Calendar.MILLISECOND, 0)
-            }.timeInMillis
-            val weekAhead = now + (7 * 24 * 60 * 60 * 1000L)
-            val uri = android.provider.CalendarContract.Events.CONTENT_URI
+            val (startOfToday, weekAhead) = calendarWindowStartTodayToWeek()
+            val uri = calendarInstancesUri(startOfToday, weekAhead)
+
             val projection = arrayOf(
-                android.provider.CalendarContract.Events.TITLE,
-                android.provider.CalendarContract.Events.DTSTART,
-                android.provider.CalendarContract.Events.DTEND,
-                android.provider.CalendarContract.Events.EVENT_LOCATION,
-                android.provider.CalendarContract.Events.DESCRIPTION,
-                android.provider.CalendarContract.Events.ALL_DAY
+                android.provider.CalendarContract.Instances.TITLE,
+                android.provider.CalendarContract.Instances.BEGIN,
+                android.provider.CalendarContract.Instances.END,
+                android.provider.CalendarContract.Instances.EVENT_LOCATION,
+                android.provider.CalendarContract.Instances.ALL_DAY
             )
-            val selection = "${android.provider.CalendarContract.Events.DTSTART} >= ? AND ${android.provider.CalendarContract.Events.DTSTART} <= ? AND ${android.provider.CalendarContract.Events.DELETED} = 0"
-            val cursor = contentResolver.query(uri, projection, selection, arrayOf(startOfToday.toString(), weekAhead.toString()), "${android.provider.CalendarContract.Events.DTSTART} ASC")
+
+            val cursor = contentResolver.query(
+                uri,
+                projection,
+                null,
+                null,
+                "${android.provider.CalendarContract.Instances.BEGIN} ASC"
+            )
+
             val events = StringBuilder()
             cursor?.use {
-                val titleIdx = it.getColumnIndex(android.provider.CalendarContract.Events.TITLE)
-                val startIdx = it.getColumnIndex(android.provider.CalendarContract.Events.DTSTART)
-                val endIdx = it.getColumnIndex(android.provider.CalendarContract.Events.DTEND)
-                val locationIdx = it.getColumnIndex(android.provider.CalendarContract.Events.EVENT_LOCATION)
-                val allDayIdx = it.getColumnIndex(android.provider.CalendarContract.Events.ALL_DAY)
+                val titleIdx = it.getColumnIndexOrThrow(android.provider.CalendarContract.Instances.TITLE)
+                val startIdx = it.getColumnIndexOrThrow(android.provider.CalendarContract.Instances.BEGIN)
+                val endIdx = it.getColumnIndexOrThrow(android.provider.CalendarContract.Instances.END)
+                val locationIdx = it.getColumnIndexOrThrow(android.provider.CalendarContract.Instances.EVENT_LOCATION)
+                val allDayIdx = it.getColumnIndexOrThrow(android.provider.CalendarContract.Instances.ALL_DAY)
+
                 while (it.moveToNext()) {
                     val title = it.getString(titleIdx) ?: "Untitled"
                     val start = it.getLong(startIdx)
-                    val end = it.getLong(endIdx)
+                    val rawEnd = it.getLong(endIdx)
+                    val end = if (rawEnd > 0L) rawEnd else start
                     val location = it.getString(locationIdx) ?: ""
                     val allDay = it.getInt(allDayIdx) == 1
+
                     val fmt = java.text.SimpleDateFormat("EEE dd MMM HH:mm", java.util.Locale.UK)
-                    val startStr = if (allDay) java.text.SimpleDateFormat("EEE dd MMM", java.util.Locale.UK).format(java.util.Date(start)) else fmt.format(java.util.Date(start))
+                    val startStr = if (allDay) {
+                        java.text.SimpleDateFormat("EEE dd MMM", java.util.Locale.UK).format(java.util.Date(start))
+                    } else {
+                        fmt.format(java.util.Date(start))
+                    }
                     val endStr = if (allDay) "" else " - ${java.text.SimpleDateFormat("HH:mm", java.util.Locale.UK).format(java.util.Date(end))}"
+
                     events.append("• $title: $startStr$endStr")
                     if (location.isNotEmpty()) events.append(" @ $location")
                     events.append("\n")
@@ -1620,10 +1643,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             }
             events.toString().trim()
         } catch (e: Exception) {
-            android.util.Log.e("TONY_CALENDAR", "Calendar read failed: ${e.message}")
+            android.util.Log.e("TONY_CALENDAR", "Calendar instances read failed: ${e.message}")
             ""
         }
     }
+
 
     private fun readDeviceCalendarStructured(): List<NovaApiClient.CalendarEvent> {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALENDAR)
@@ -1631,45 +1655,52 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             return emptyList()
         }
         return try {
-            val now = System.currentTimeMillis()
-            val startOfToday = java.util.Calendar.getInstance().apply {
-                set(java.util.Calendar.HOUR_OF_DAY, 0)
-                set(java.util.Calendar.MINUTE, 0)
-                set(java.util.Calendar.SECOND, 0)
-                set(java.util.Calendar.MILLISECOND, 0)
-            }.timeInMillis
-            val weekAhead = now + (7 * 24 * 60 * 60 * 1000L)
-            val uri = android.provider.CalendarContract.Events.CONTENT_URI
+            val (startOfToday, weekAhead) = calendarWindowStartTodayToWeek()
+            val uri = calendarInstancesUri(startOfToday, weekAhead)
+
             val projection = arrayOf(
-                android.provider.CalendarContract.Events._ID,
-                android.provider.CalendarContract.Events.CALENDAR_ID,
-                android.provider.CalendarContract.Events.TITLE,
-                android.provider.CalendarContract.Events.DTSTART,
-                android.provider.CalendarContract.Events.DTEND,
-                android.provider.CalendarContract.Events.EVENT_LOCATION,
-                android.provider.CalendarContract.Events.DESCRIPTION,
-                android.provider.CalendarContract.Events.ALL_DAY
+                android.provider.CalendarContract.Instances.EVENT_ID,
+                android.provider.CalendarContract.Instances.CALENDAR_ID,
+                android.provider.CalendarContract.Instances.TITLE,
+                android.provider.CalendarContract.Instances.BEGIN,
+                android.provider.CalendarContract.Instances.END,
+                android.provider.CalendarContract.Instances.EVENT_LOCATION,
+                android.provider.CalendarContract.Instances.DESCRIPTION,
+                android.provider.CalendarContract.Instances.ALL_DAY
             )
-            val selection = "${android.provider.CalendarContract.Events.DTSTART} >= ? AND ${android.provider.CalendarContract.Events.DTSTART} <= ? AND ${android.provider.CalendarContract.Events.DELETED} = 0"
-            val cursor = contentResolver.query(uri, projection, selection, arrayOf(startOfToday.toString(), weekAhead.toString()), "${android.provider.CalendarContract.Events.DTSTART} ASC")
+
+            val cursor = contentResolver.query(
+                uri,
+                projection,
+                null,
+                null,
+                "${android.provider.CalendarContract.Instances.BEGIN} ASC"
+            )
+
             val events = mutableListOf<NovaApiClient.CalendarEvent>()
             cursor?.use {
-                val idIdx = it.getColumnIndex(android.provider.CalendarContract.Events._ID)
-                val calIdx = it.getColumnIndex(android.provider.CalendarContract.Events.CALENDAR_ID)
-                val titleIdx = it.getColumnIndex(android.provider.CalendarContract.Events.TITLE)
-                val startIdx = it.getColumnIndex(android.provider.CalendarContract.Events.DTSTART)
-                val endIdx = it.getColumnIndex(android.provider.CalendarContract.Events.DTEND)
-                val locationIdx = it.getColumnIndex(android.provider.CalendarContract.Events.EVENT_LOCATION)
-                val descIdx = it.getColumnIndex(android.provider.CalendarContract.Events.DESCRIPTION)
-                val allDayIdx = it.getColumnIndex(android.provider.CalendarContract.Events.ALL_DAY)
+                val eventIdIdx = it.getColumnIndexOrThrow(android.provider.CalendarContract.Instances.EVENT_ID)
+                val calIdx = it.getColumnIndexOrThrow(android.provider.CalendarContract.Instances.CALENDAR_ID)
+                val titleIdx = it.getColumnIndexOrThrow(android.provider.CalendarContract.Instances.TITLE)
+                val startIdx = it.getColumnIndexOrThrow(android.provider.CalendarContract.Instances.BEGIN)
+                val endIdx = it.getColumnIndexOrThrow(android.provider.CalendarContract.Instances.END)
+                val locationIdx = it.getColumnIndexOrThrow(android.provider.CalendarContract.Instances.EVENT_LOCATION)
+                val descIdx = it.getColumnIndexOrThrow(android.provider.CalendarContract.Instances.DESCRIPTION)
+                val allDayIdx = it.getColumnIndexOrThrow(android.provider.CalendarContract.Instances.ALL_DAY)
+
                 while (it.moveToNext()) {
+                    val baseEventId = it.getLong(eventIdIdx)
+                    val start = it.getLong(startIdx)
+                    val rawEnd = it.getLong(endIdx)
+                    val end = if (rawEnd > 0L) rawEnd else start
+
                     events.add(
                         NovaApiClient.CalendarEvent(
-                            eventId = it.getLong(idIdx),
-                            calendarId = it.getLong(calIdx),
+                            eventId = "$baseEventId:$start",
+                            calendarId = it.getLong(calIdx).toString(),
                             title = it.getString(titleIdx) ?: "Untitled",
-                            startMs = it.getLong(startIdx),
-                            endMs = it.getLong(endIdx),
+                            startMs = start,
+                            endMs = end,
                             allDay = it.getInt(allDayIdx) == 1,
                             location = it.getString(locationIdx),
                             description = it.getString(descIdx)
@@ -1679,7 +1710,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             }
             events
         } catch (e: Exception) {
-            android.util.Log.e("TONY_CALENDAR", "Structured calendar read failed: ${e.message}")
+            android.util.Log.e("TONY_CALENDAR", "Structured calendar instances read failed: ${e.message}")
             emptyList()
         }
     }
