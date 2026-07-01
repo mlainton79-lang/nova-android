@@ -32,6 +32,8 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build debug APK
+        env:
+          NOVA_DEV_TOKEN: ${{ secrets.NOVA_DEV_TOKEN }}
         run: ./gradlew :app:assembleDebug --stacktrace
 
       - name: Upload debug APK
