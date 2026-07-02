@@ -1153,8 +1153,8 @@ object NovaApiClient {
     }
 
     data class CalendarEvent(
-        val eventId: Long,
-        val calendarId: Long,
+        val eventId: String,
+        val calendarId: String,
         val title: String,
         val startMs: Long,
         val endMs: Long,
