@@ -1,5 +1,8 @@
 name: Android Debug Build
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
   pull_request:
@@ -35,15 +38,45 @@ jobs:
         env:
           GOOGLE_SERVICES_JSON_B64: ${{ secrets.GOOGLE_SERVICES_JSON_B64 }}
         run: |
-          if [ -z "$GOOGLE_SERVICES_JSON_B64" ]; then
-            echo "GOOGLE_SERVICES_JSON_B64 secret is missing"
-            exit 1
+          if [ -n "$GOOGLE_SERVICES_JSON_B64" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON_B64" | base64 --decode > app/google-services.json
+          else
+            echo "GOOGLE_SERVICES_JSON_B64 unavailable; writing CI placeholder config"
+            cat > app/google-services.json <<'JSON'
+          {
+            "project_info": {
+              "project_number": "000000000000",
+              "project_id": "nova-ci-placeholder",
+              "storage_bucket": "nova-ci-placeholder.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+                  "android_client_info": {
+                    "package_name": "com.mlainton.nova"
+                  }
+                },
+                "api_key": [
+                  {
+                    "current_key": "ci-placeholder-api-key"
+                  }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "other_platform_oauth_client": []
+                  }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          JSON
           fi
-          printf '%s' "$GOOGLE_SERVICES_JSON_B64" | base64 --decode > app/google-services.json
 
       - name: Build debug APK
         env:
-          NOVA_DEV_TOKEN: ${{ secrets.NOVA_DEV_TOKEN }}
+          NOVA_DEV_TOKEN: ${{ secrets.NOVA_DEV_TOKEN || 'ci-placeholder-token' }}
         run: ./gradlew :app:assembleDebug --stacktrace
 
       - name: Upload debug APK
