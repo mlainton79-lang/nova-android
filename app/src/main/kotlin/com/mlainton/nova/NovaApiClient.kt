@@ -987,6 +987,49 @@ object NovaApiClient {
         deserialize = { NovaJson.strict.decodeFromString(WorkerLogResult.serializer(), it) },
     )
 
+    /** Actionable daily focus view: briefing, next actions, health flags, approvals. */
+    fun getTodayBrief(): ApiCall<TodayBriefResult> = httpGetSerialized(
+        path = "/api/v1/briefing/now",
+        safeFailureMessages = true,
+        deserialize = {
+            NovaJson.safeReadModel.decodeFromString(TodayBriefResult.serializer(), it)
+        },
+    )
+
+    /** End-of-day review and follow-up actions. */
+    fun getDailyReview(): ApiCall<DailyReviewResult> = httpGetSerialized(
+        path = "/api/v1/review/today",
+        safeFailureMessages = true,
+        deserialize = {
+            NovaJson.safeReadModel.decodeFromString(DailyReviewResult.serializer(), it)
+        },
+    )
+
+    /** Deterministic daily-loop quality gate for Capture / Now / Review. */
+    fun getDailyLoopQuality(): ApiCall<DailyLoopQualityResult> = httpGetSerialized(
+        path = "/api/v1/evals/daily-loop",
+        safeFailureMessages = true,
+        deserialize = {
+            NovaJson.safeReadModel.decodeFromString(DailyLoopQualityResult.serializer(), it)
+        },
+    )
+
+    /** Save a guarded low-risk note to Nova memory. */
+    fun captureNote(text: String, category: String = "capture"): ApiCall<CaptureNoteResult> {
+        val body = JSONObject().apply {
+            put("text", text)
+            put("category", category)
+        }
+        return httpPostJsonSerialized(
+            path = "/api/v1/capture/note",
+            body = body,
+            failureVerb = "save this note",
+            deserialize = {
+                NovaJson.safeReadModel.decodeFromString(CaptureNoteResult.serializer(), it)
+            },
+        )
+    }
+
     /** Read-only, sanitized view of approvals currently waiting for review. */
     fun getPendingApprovals(): ApiCall<ApprovalInboxResult> = httpGetSerialized(
         path = "/api/v1/approvals/pending",
@@ -1054,6 +1097,46 @@ object NovaApiClient {
         } catch (e: Exception) {
             ApiCall.Failure(
                 message = "Could not $failureVerb this approval. Check your connection and try again.",
+                cause = e,
+            )
+        }
+    }
+
+    /** JSON POST helper for typed engine endpoints. */
+    private fun <T> httpPostJsonSerialized(
+        path: String,
+        body: JSONObject,
+        failureVerb: String,
+        deserialize: (String) -> T,
+    ): ApiCall<T> {
+        return try {
+            val url = URL("$BASE_URL$path")
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 15000
+                readTimeout = 30000
+                doOutput = true
+                instanceFollowRedirects = true
+                setRequestProperty("Authorization", "Bearer $DEV_TOKEN")
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Accept", "application/json")
+            }
+            connection.outputStream.use { stream ->
+                stream.write(body.toString().toByteArray())
+                stream.flush()
+            }
+            val statusCode = connection.responseCode
+            if (statusCode !in 200..299) {
+                return ApiCall.Failure(
+                    message = "Could not $failureVerb (HTTP $statusCode).",
+                    statusCode = statusCode,
+                )
+            }
+            val text = readAll(connection.inputStream)
+            ApiCall.Success(body = deserialize(text))
+        } catch (e: Exception) {
+            ApiCall.Failure(
+                message = "Could not $failureVerb. Check your connection and try again.",
                 cause = e,
             )
         }

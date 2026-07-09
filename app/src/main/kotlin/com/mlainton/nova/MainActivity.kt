@@ -74,6 +74,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var drawerVintedDraftsButton: Button
     private lateinit var drawerEmailDraftsButton: Button
     private lateinit var drawerTonyStatusButton: Button
+    private lateinit var drawerDailyLoopButton: Button
     private lateinit var drawerApprovalInboxButton: Button
 
     private var tts: TextToSpeech? = null
@@ -141,6 +142,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         drawerVintedDraftsButton = findViewById(R.id.drawerVintedDraftsButton)
         drawerEmailDraftsButton = findViewById(R.id.drawerEmailDraftsButton)
         drawerTonyStatusButton = findViewById(R.id.drawerTonyStatusButton)
+        drawerDailyLoopButton = findViewById(R.id.drawerDailyLoopButton)
         drawerApprovalInboxButton = findViewById(R.id.drawerApprovalInboxButton)
 
         currentBrainMode = BrokerPrefs.getBrainMode(this)
@@ -219,6 +221,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         drawerTonyStatusButton.setOnClickListener {
             drawerLayout.closeDrawer(GravityCompat.START)
             startActivity(Intent(this, TonyStatusActivity::class.java))
+        }
+
+        drawerDailyLoopButton.setOnClickListener {
+            drawerLayout.closeDrawer(GravityCompat.START)
+            startActivity(Intent(this, DailyLoopActivity::class.java))
         }
 
         drawerApprovalInboxButton.setOnClickListener {
