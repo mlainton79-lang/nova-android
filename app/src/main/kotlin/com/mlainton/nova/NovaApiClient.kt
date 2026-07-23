@@ -47,12 +47,31 @@ object NovaApiClient {
 
     data class HistoryItem(val role: String, val content: String)
 
+    data class CouncilFailure(
+        val errorClass: String,
+        val message: String,
+        val stage: String? = null
+    )
+
+    data class DarkSeat(
+        val name: String,
+        val errorClass: String
+    )
+
+    data class CouncilHealthData(
+        val seats: Int,
+        val responded: Int,
+        val chair: String?,
+        val dark: List<DarkSeat>
+    )
+
     data class CouncilDebugData(
         val decidingBrain: String,
         val round1: Map<String, String>,
         val challenge: String,
         val round2Refined: Map<String, String>,
-        val failures: Map<String, String> = emptyMap()
+        val failures: Map<String, CouncilFailure> = emptyMap(),
+        val councilHealth: CouncilHealthData? = null
     )
 
     data class ChatResult(
@@ -287,9 +306,44 @@ object NovaApiClient {
             val responseText = readAll(if (statusCode in 200..299) connection.inputStream else connection.errorStream)
             val json = JSONObject(responseText.ifBlank { "{}" })
 
-            val failures = mutableMapOf<String, String>()
+            // Backend `failures` shape: {provider: {stage, error_class, message}}
+            // (app/providers/council.py::_provider_failure). Previous parsing
+            // used optString on the value and got "" — a silent contract drift.
+            val failures = mutableMapOf<String, CouncilFailure>()
             json.optJSONObject("failures")?.let { f ->
-                f.keys().forEach { k -> failures[k] = f.optString(k) }
+                f.keys().forEach { k ->
+                    val obj = f.optJSONObject(k) ?: return@forEach
+                    failures[k] = CouncilFailure(
+                        errorClass = obj.optString("error_class", "Unknown"),
+                        message = obj.optString("message", ""),
+                        stage = obj.optString("stage", "").takeIf { it.isNotBlank() }
+                    )
+                }
+            }
+
+            // council_health lives at the top level of the response, not
+            // inside debug — it ships on every council reply (healthy or
+            // degraded) so the debug panel can render seat status even
+            // when debug=false. See _build_council_health in council.py.
+            val councilHealth = json.optJSONObject("council_health")?.let { h ->
+                val darkList = mutableListOf<DarkSeat>()
+                h.optJSONArray("dark")?.let { arr ->
+                    for (i in 0 until arr.length()) {
+                        val entry = arr.optJSONObject(i) ?: continue
+                        darkList.add(
+                            DarkSeat(
+                                name = entry.optString("name", ""),
+                                errorClass = entry.optString("error_class", "Unknown")
+                            )
+                        )
+                    }
+                }
+                CouncilHealthData(
+                    seats = h.optInt("seats", 0),
+                    responded = h.optInt("responded", 0),
+                    chair = h.optString("chair", "").takeIf { it.isNotBlank() },
+                    dark = darkList
+                )
             }
 
             val debugData = json.optJSONObject("debug")?.let { d ->
@@ -302,9 +356,22 @@ object NovaApiClient {
                     round1 = round1,
                     challenge = d.optString("challenge", ""),
                     round2Refined = round2,
-                    failures = failures
+                    failures = failures,
+                    councilHealth = councilHealth
                 )
-            }
+            } ?: if (councilHealth != null || failures.isNotEmpty()) {
+                // Even without debug=true the seat health envelope may be
+                // present (degraded/all-failed paths). Surface it in a
+                // minimal CouncilDebugData so the panel can render it.
+                CouncilDebugData(
+                    decidingBrain = "",
+                    round1 = emptyMap(),
+                    challenge = "",
+                    round2Refined = emptyMap(),
+                    failures = failures,
+                    councilHealth = councilHealth
+                )
+            } else null
 
             ChatResult(
                 ok = json.optBoolean("ok", statusCode in 200..299),

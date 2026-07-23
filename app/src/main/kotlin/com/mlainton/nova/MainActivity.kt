@@ -530,7 +530,12 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun showBrainPicker() {
-        val modes = BrainMode.entries.toTypedArray()
+        // Trim to live brains only. AUTO (routing wrapper, not a brain) and
+        // LOCAL_TONY (on-device fallback, kept in the enum so existing prefs
+        // and the on-device path still compile) don't belong in the picker.
+        val modes = BrainMode.entries
+            .filter { it != BrainMode.AUTO && it != BrainMode.LOCAL_TONY }
+            .toTypedArray()
         val labels = modes.map { it.displayName }.toTypedArray()
         val selectedIndex = modes.indexOf(currentBrainMode)
         AlertDialog.Builder(this)
@@ -1194,8 +1199,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 val challenge = d.optString("challenge", "")
                 val round1 = d.optJSONObject("round1")
                 val round2 = d.optJSONObject("round2")
-                val providersUsed = d.optJSONArray("providersUsed")
-                val providersFailed = d.optJSONArray("providersFailed")
+                val failures = d.optJSONObject("failures")
+                val councilHealth = d.optJSONObject("councilHealth")
 
                 fun debugLine(text: String, color: Int = 0xFFB0A0CC.toInt()): TextView = TextView(this).apply {
                     this.text = text
@@ -1205,15 +1210,44 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     setTextIsSelectable(true)
                 }
 
-                debugPanel.addView(debugLine("🧠 Decided by: $decidingBrain", 0xFFE0D0FF.toInt()))
-
-                if (providersUsed != null && providersUsed.length() > 0) {
-                    val used = (0 until providersUsed.length()).map { providersUsed.getString(it) }
-                    debugPanel.addView(debugLine("✅ Active: ${used.joinToString(", ")}"))
+                if (decidingBrain.isNotEmpty()) {
+                    debugPanel.addView(debugLine("🧠 Decided by: $decidingBrain", 0xFFE0D0FF.toInt()))
                 }
-                if (providersFailed != null && providersFailed.length() > 0) {
-                    val failed = (0 until providersFailed.length()).map { providersFailed.getString(it) }
-                    debugPanel.addView(debugLine("❌ Failed: ${failed.joinToString(", ")}", 0xFFCC8888.toInt()))
+
+                // council_health block: seat quorum + dark seats. Rendered
+                // even on degraded responses (backend ships it every time).
+                if (councilHealth != null) {
+                    val seats = councilHealth.optInt("seats", 0)
+                    val responded = councilHealth.optInt("responded", 0)
+                    val chair = councilHealth.optString("chair", "").takeIf { it.isNotBlank() }
+                    val chairSuffix = if (chair != null) " · chair: $chair" else ""
+                    debugPanel.addView(debugLine("🪑 $responded/$seats seats responded$chairSuffix"))
+
+                    val darkArr = councilHealth.optJSONArray("dark")
+                    if (darkArr != null && darkArr.length() > 0) {
+                        val darkText = (0 until darkArr.length()).mapNotNull { i ->
+                            darkArr.optJSONObject(i)?.let { e ->
+                                val n = e.optString("name")
+                                val ec = e.optString("errorClass")
+                                if (n.isNotBlank()) "$n ($ec)" else null
+                            }
+                        }.joinToString(", ")
+                        if (darkText.isNotEmpty()) {
+                            debugPanel.addView(debugLine("🌑 Dark: $darkText", 0xFFCC8888.toInt()))
+                        }
+                    }
+                }
+
+                // Typed failures — each provider's errorClass + message.
+                if (failures != null && failures.length() > 0) {
+                    debugPanel.addView(debugLine("── Failures ──", 0xFF9B8FBF.toInt()))
+                    failures.keys().forEach { p ->
+                        val f = failures.optJSONObject(p) ?: return@forEach
+                        val ec = f.optString("errorClass", "Unknown")
+                        val msg = f.optString("message", "")
+                        val line = if (msg.isBlank()) "$p: $ec" else "$p: $ec — $msg"
+                        debugPanel.addView(debugLine(line, 0xFFCC8888.toInt()))
+                    }
                 }
                 if (round1 != null && round1.length() > 0) {
                     debugPanel.addView(debugLine("── Round 1 ──", 0xFF9B8FBF.toInt()))
@@ -2458,6 +2492,33 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                             val r2 = org.json.JSONObject()
                             d.round2Refined.forEach { (k, v) -> r2.put(k, v) }
                             put("round2", r2)
+                            // Typed failures — {provider: {errorClass, message, stage}}
+                            val fj = org.json.JSONObject()
+                            d.failures.forEach { (name, f) ->
+                                fj.put(name, org.json.JSONObject().apply {
+                                    put("errorClass", f.errorClass)
+                                    put("message", f.message)
+                                    if (f.stage != null) put("stage", f.stage)
+                                })
+                            }
+                            put("failures", fj)
+                            // council_health envelope so the panel can show
+                            // seat status without another round-trip.
+                            d.councilHealth?.let { h ->
+                                put("councilHealth", org.json.JSONObject().apply {
+                                    put("seats", h.seats)
+                                    put("responded", h.responded)
+                                    if (h.chair != null) put("chair", h.chair)
+                                    val darkArr = org.json.JSONArray()
+                                    h.dark.forEach { seat ->
+                                        darkArr.put(org.json.JSONObject().apply {
+                                            put("name", seat.name)
+                                            put("errorClass", seat.errorClass)
+                                        })
+                                    }
+                                    put("dark", darkArr)
+                                })
+                            }
                         }.toString()
                     } ?: ""
 
@@ -2466,7 +2527,12 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         val parts = mutableListOf<String>()
                         if (!result.error.isNullOrBlank()) parts.add("error: ${result.error}")
                         if (councilFailures.isNotEmpty()) {
-                            parts.add("failed providers — " + councilFailures.entries.joinToString("; ") { (p, r) -> "$p: $r" })
+                            parts.add(
+                                "failed providers — " + councilFailures.entries.joinToString("; ") { (p, f) ->
+                                    if (f.message.isBlank()) "$p: ${f.errorClass}"
+                                    else "$p: ${f.errorClass} — ${f.message}"
+                                }
+                            )
                         }
                         if (parts.isEmpty()) parts.add("council returned ok=false with no detail")
                         parts.joinToString(" | ")
