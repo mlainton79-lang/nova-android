@@ -530,7 +530,12 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun showBrainPicker() {
-        val modes = BrainMode.entries.toTypedArray()
+        // Mothballed brains — kept in the enum so old saved prefs still
+        // deserialise and the routing paths compile, but hidden from the
+        // picker so nobody picks a dead seat. XAI would be listed here too
+        // but has never had an enum entry.
+        val mothballed = setOf(BrainMode.DEEPSEEK, BrainMode.OPENROUTER)
+        val modes = BrainMode.entries.filter { it !in mothballed }.toTypedArray()
         val labels = modes.map { it.displayName }.toTypedArray()
         val selectedIndex = modes.indexOf(currentBrainMode)
         AlertDialog.Builder(this)

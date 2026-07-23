@@ -7,13 +7,17 @@ object BrokerPrefs {
     private const val KEY_BRAIN_MODE = "brain_mode"
 
     fun getBrainMode(context: Context): BrainMode {
+        // Fallback is AUTO: safe default when no pref is set and the resolution
+        // for unknown/removed enum names (a stored value from an older build
+        // whose entry has since been retired). Falling back to a specific
+        // provider would silently steer users onto a seat that may be dead.
         val raw = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getString(KEY_BRAIN_MODE, BrainMode.CLAUDE_MOCK.name)
+            .getString(KEY_BRAIN_MODE, BrainMode.AUTO.name)
 
         return try {
-            BrainMode.valueOf(raw ?: BrainMode.CLAUDE_MOCK.name)
+            BrainMode.valueOf(raw ?: BrainMode.AUTO.name)
         } catch (_: Exception) {
-            BrainMode.CLAUDE_MOCK
+            BrainMode.AUTO
         }
     }
 
