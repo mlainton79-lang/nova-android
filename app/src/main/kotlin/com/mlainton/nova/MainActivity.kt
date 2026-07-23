@@ -2385,7 +2385,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             return
         }
         statusText.text = "Tony thinking (on-device)..."
-        ChatHistoryStore.appendMessage(this, "user", message)
         renderChatHistory()
 
         Thread {
