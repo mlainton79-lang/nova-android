@@ -14,11 +14,16 @@ object BrokerPrefs {
         val raw = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getString(KEY_BRAIN_MODE, BrainMode.AUTO.name)
 
-        return try {
+        val resolved = try {
             BrainMode.valueOf(raw ?: BrainMode.AUTO.name)
         } catch (_: Exception) {
             BrainMode.AUTO
         }
+        // Mothballed enum entries still deserialise cleanly (the name is
+        // valid), so the valueOf try/catch above wouldn't catch them. Migrate
+        // them to AUTO here so users persisted on a dead seat don't keep
+        // routing to it silently between opens.
+        return if (resolved in MOTHBALLED_BRAINS) BrainMode.AUTO else resolved
     }
 
     fun setBrainMode(context: Context, mode: BrainMode) {

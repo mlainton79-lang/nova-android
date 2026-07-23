@@ -34,3 +34,9 @@ object BrainBroker {
 }
 
 data class BrokerResult(val reply: String, val providerLabel: String)
+
+// Retired brains. Enum entries stay so old prefs still deserialise and the
+// routing paths compile, but these modes must never surface: hidden from the
+// picker and migrated to AUTO on read in BrokerPrefs. Extend when retiring
+// more seats — one source of truth for the picker filter and the pref migration.
+val MOTHBALLED_BRAINS: Set<BrainMode> = setOf(BrainMode.DEEPSEEK, BrainMode.OPENROUTER)
