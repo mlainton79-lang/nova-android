@@ -14,7 +14,7 @@ composeCompiler = "2.1.0"
 activityCompose = "1.9.3"
 serialization = "1.7.3"
 googleServices = "4.5.0"
-firebaseBom = "34.15.0"
+firebaseBom = "34.16.0"
 camera = "1.6.1"
 
 [plugins]
