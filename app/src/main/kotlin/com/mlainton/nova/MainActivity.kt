@@ -530,12 +530,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun showBrainPicker() {
-        // Trim to live brains only. AUTO (routing wrapper, not a brain) and
-        // LOCAL_TONY (on-device fallback, kept in the enum so existing prefs
-        // and the on-device path still compile) don't belong in the picker.
-        val modes = BrainMode.entries
-            .filter { it != BrainMode.AUTO && it != BrainMode.LOCAL_TONY }
-            .toTypedArray()
+        val modes = BrainMode.entries.toTypedArray()
         val labels = modes.map { it.displayName }.toTypedArray()
         val selectedIndex = modes.indexOf(currentBrainMode)
         AlertDialog.Builder(this)
